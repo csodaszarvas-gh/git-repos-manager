@@ -2,7 +2,7 @@
   "name": "git-repos-manager",
   "displayName": "Git Repos Manager",
   "description": "Manage multiple Git repositories found across your project directories: status, stage, commit, history, fetch, pull and push from a single sidebar view.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "publisher": "sky",
   "license": "MIT",
   "engines": {
@@ -203,6 +203,12 @@
         "icon": "$(git-compare)"
       },
       {
+        "command": "gitReposManager.discardFiles",
+        "title": "Discard Changes",
+        "category": "Git Repos",
+        "icon": "$(discard)"
+      },
+      {
         "command": "gitReposManager.refreshHistory",
         "title": "Refresh History",
         "category": "Git Repos",
@@ -372,6 +378,11 @@
           "group": "1_edit@1"
         },
         {
+          "command": "gitReposManager.discardFiles",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem =~ /^(staged|changes|untracked|conflicts)File$/",
+          "group": "2_discard@1"
+        },
+        {
           "command": "gitReposManager.showChangedFiles",
           "when": "view == gitReposManager.historyView && viewItem == commit",
           "group": "1_history@1"
@@ -468,15 +479,11 @@
           "when": "false"
         },
         {
-          "command": "gitReposManager.commit",
-          "when": "false"
-        },
-        {
-          "command": "gitReposManager.commitAll",
-          "when": "false"
-        },
-        {
           "command": "gitReposManager.openChanges",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.discardFiles",
           "when": "false"
         },
         {

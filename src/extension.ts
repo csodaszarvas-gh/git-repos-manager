@@ -22,6 +22,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const reposView = vscode.window.createTreeView('gitReposManager.reposView', {
     treeDataProvider: tree,
+    canSelectMany: true,
   });
   const historyView = vscode.window.createTreeView('gitReposManager.historyView', {
     treeDataProvider: history,
@@ -32,6 +33,7 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   const workingTreeView = vscode.window.createTreeView('gitReposManager.workingTreeView', {
     treeDataProvider: workingTree,
+    canSelectMany: true,
   });
 
   context.subscriptions.push(

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import * as path from 'path';
 import { CombinedFileItem } from './changedFilesTree';
 import { showCommitBox } from './commitBox';
@@ -94,6 +95,16 @@ export function registerCommands(
     vscode.commands.registerCommand('gitReposManager.openChanges', (item?: FileItem) =>
       openChanges(item),
     ),
+    vscode.commands.registerCommand(
+      'gitReposManager.discardFiles',
+      (item?: FileItem, items?: FileItem[]) => {
+        // With canSelectMany, the second argument carries the full selection.
+        const selected = items && items.length > 0 ? items : item ? [item] : [];
+        if (selected.length > 0) {
+          void discardChanges(selected, tree, log);
+        }
+      },
+    ),
   );
 }
 
@@ -138,6 +149,89 @@ function runGit(
   log: LogFn,
 ): Promise<boolean> {
   return runGitSteps(repo, [args], label, tree, log);
+}
+
+/**
+ * Discard uncommitted changes for the selected files: revert tracked files,
+ * delete untracked/newly added ones. Confirmed through a modal dialog because
+ * the operation cannot be undone.
+ */
+async function discardChanges(
+  selected: FileItem[],
+  tree: RepoTreeProvider,
+  log: LogFn,
+): Promise<void> {
+  const byRepo = new Map<string, { repo: Repository; items: FileItem[] }>();
+  for (const item of selected) {
+    const entry = byRepo.get(item.repo.root) ?? { repo: item.repo, items: [] };
+    entry.items.push(item);
+    byRepo.set(item.repo.root, entry);
+  }
+  const total = selected.length;
+  const paths = selected.map((i) => i.change.path);
+  const detail =
+    paths.slice(0, 20).join('\n') +
+    (paths.length > 20 ? `\n…and ${paths.length - 20} more` : '');
+  const confirm = await vscode.window.showWarningMessage(
+    `Discard changes to ${total} file${total === 1 ? '' : 's'}? ` +
+      'Untracked and newly added files will be deleted from disk. This cannot be undone.',
+    { modal: true, detail },
+    'Discard Changes',
+  );
+  if (confirm !== 'Discard Changes') {
+    return;
+  }
+  for (const { repo, items } of byRepo.values()) {
+    const resetPaths: string[] = [];
+    const checkoutPaths: string[] = [];
+    const deletions: string[] = [];
+    for (const item of items) {
+      const change = item.change;
+      if (item.kind === 'untracked') {
+        deletions.push(change.path);
+      } else if (item.kind === 'staged' && change.x === 'A') {
+        // Newly added: unstage and remove from disk.
+        deletions.push(change.path);
+        resetPaths.push(change.path);
+      } else if (item.kind === 'staged' && change.origPath) {
+        // Staged rename: restore the original path, remove the new one.
+        resetPaths.push(change.path, change.origPath);
+        checkoutPaths.push(change.origPath);
+        deletions.push(change.path);
+      } else if (item.kind === 'staged' || item.kind === 'conflicts') {
+        // Full rollback to HEAD (also clears merge conflicts).
+        resetPaths.push(change.path);
+        checkoutPaths.push(change.path);
+      } else {
+        // Unstaged: revert the worktree to the index, keeping staged content.
+        checkoutPaths.push(change.path);
+      }
+    }
+    for (const rel of deletions) {
+      try {
+        await fs.promises.unlink(path.join(repo.root, rel));
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          log(`Failed to delete ${rel} in ${repo.root}: ${String(err)}`);
+        }
+      }
+    }
+    const steps: string[][] = [];
+    for (let i = 0; i < resetPaths.length; i += 50) {
+      steps.push(['reset', '-q', '--', ...resetPaths.slice(i, i + 50)]);
+    }
+    for (let i = 0; i < checkoutPaths.length; i += 50) {
+      steps.push(['checkout', '--', ...checkoutPaths.slice(i, i + 50)]);
+    }
+    if (steps.length > 0) {
+      await runGitSteps(repo, steps, 'Discard changes', tree, log);
+    } else {
+      await tree.refresh();
+    }
+  }
+  void vscode.window.showInformationMessage(
+    `Discarded changes to ${total} file${total === 1 ? '' : 's'}.`,
+  );
 }
 
 async function unstageAll(
