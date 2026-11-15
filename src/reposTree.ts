@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { Repository, scanRepositories } from './repoScanner';
-import { FileChange, filesForGroup, getLastCommit, getStatus, GroupKind, LogFn, RepoStatus } from './git';
+import { FileChange, getLastCommit, getStatus, GroupKind, LogFn, RepoStatus } from './git';
 
 export type { GroupKind } from './git';
 
@@ -20,12 +20,9 @@ export class RepoItem extends vscode.TreeItem {
     public readonly error: string | undefined,
     workspaceFolderCount: number,
   ) {
-    super(
-      RepoItem.labelFor(repo, workspaceFolderCount),
-      status && status.staged + status.unstaged + status.untracked + status.conflicted > 0
-        ? vscode.TreeItemCollapsibleState.Collapsed
-        : vscode.TreeItemCollapsibleState.None,
-    );
+    // File-level details live in the bottom-panel Working Tree tab; the
+    // sidebar stays a clean repository list.
+    super(RepoItem.labelFor(repo, workspaceFolderCount), vscode.TreeItemCollapsibleState.None);
     this.id = repo.root;
     this.contextValue = 'repo';
     this.description = this.buildDescription();
@@ -221,26 +218,7 @@ export class RepoTreeProvider implements vscode.TreeDataProvider<AnyItem> {
   }
 
   getChildren(element?: AnyItem): AnyItem[] {
-    if (!element) {
-      return this.items;
-    }
-    if (element instanceof RepoItem) {
-      const status = element.status;
-      if (!status) {
-        return [];
-      }
-      const groups: GroupItem[] = [];
-      for (const kind of ['staged', 'changes', 'untracked', 'conflicts'] as const) {
-        const files = filesForGroup(status, kind);
-        if (files.length > 0) {
-          groups.push(new GroupItem(element.repo, kind, files));
-        }
-      }
-      return groups;
-    }
-    if (element instanceof GroupItem) {
-      return element.files.map((change) => new FileItem(element.repo, element.kind, change));
-    }
-    return [];
+    // Repositories are leaf items here; groups/files are shown in the panel.
+    return element ? [] : this.items;
   }
 }
