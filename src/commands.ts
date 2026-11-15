@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { git, LogFn } from './git';
+import { CombinedFileItem } from './changedFilesTree';
+import { makeRefUri } from './diffProvider';
+import { CommitInfo, git, LogFn } from './git';
+import { CommitFileItem, CommitItem, HistoryProvider } from './historyTree';
 import { Repository } from './repoScanner';
 import { FileItem, GroupItem, RepoItem, RepoTreeProvider } from './reposTree';
-import { DIFF_SCHEME } from './diffProvider';
 
 export function registerCommands(
   context: vscode.ExtensionContext,
@@ -193,15 +195,7 @@ function openChanges(item: FileItem | undefined): void {
     return;
   }
   const refUri = (ref: string): vscode.Uri =>
-    vscode.Uri.from({
-      scheme: DIFF_SCHEME,
-      path: fileUri.path,
-      query: new URLSearchParams({
-        root: item.repo.root,
-        ref,
-        path: item.change.path,
-      }).toString(),
-    });
+    makeRefUri(item.repo.root, item.change.path, ref);
   const name = path.basename(item.change.path);
   if (item.kind === 'staged') {
     void vscode.commands.executeCommand(
@@ -219,6 +213,63 @@ function openChanges(item: FileItem | undefined): void {
       `${name} (Index ↔ Working Tree)`,
     );
   }
+}
+
+export function registerHistoryCommands(
+  context: vscode.ExtensionContext,
+  history: HistoryProvider,
+  showChangedFiles: (
+    repo: Repository,
+    commits: CommitInfo[],
+    focusPanel: boolean,
+  ) => Promise<void>,
+): void {
+  context.subscriptions.push(
+    vscode.commands.registerCommand('gitReposManager.refreshHistory', () => history.refresh()),
+    vscode.commands.registerCommand('gitReposManager.loadMoreHistory', () => history.loadMore()),
+    vscode.commands.registerCommand(
+      'gitReposManager.showChangedFiles',
+      (item?: CommitItem, items?: CommitItem[]) => {
+        // With canSelectMany, the second argument carries the full selection.
+        const selected = items && items.length > 0 ? items : item ? [item] : [];
+        if (selected.length === 0) {
+          return;
+        }
+        void showChangedFiles(selected[0].repo, selected.map((i) => i.commit), true);
+      },
+    ),
+    vscode.commands.registerCommand('gitReposManager.openCommitFile', (item?: CommitFileItem) => {
+      if (!item) {
+        return;
+      }
+      const { repo, commit, change } = item;
+      void vscode.commands.executeCommand(
+        'vscode.diff',
+        makeRefUri(repo.root, change.path, `${commit.hash}^1`),
+        makeRefUri(repo.root, change.path, commit.hash),
+        `${path.basename(change.path)} (${commit.shortHash})`,
+      );
+    }),
+    vscode.commands.registerCommand('gitReposManager.openCombinedFile', (item?: CombinedFileItem) => {
+      if (!item || item.file.entries.length === 0) {
+        return;
+      }
+      // Entries are sorted oldest → newest: diff across the whole selection.
+      const entries = item.file.entries;
+      const oldest = entries[0].commit;
+      const newest = entries[entries.length - 1].commit;
+      const title =
+        entries.length === 1
+          ? `${path.basename(item.file.path)} (${oldest.shortHash})`
+          : `${path.basename(item.file.path)} (${oldest.shortHash} ↔ ${newest.shortHash})`;
+      void vscode.commands.executeCommand(
+        'vscode.diff',
+        makeRefUri(item.repo.root, item.file.path, `${oldest.hash}^1`),
+        makeRefUri(item.repo.root, item.file.path, newest.hash),
+        title,
+      );
+    }),
+  );
 }
 
 async function fetchAll(tree: RepoTreeProvider, log: LogFn): Promise<void> {

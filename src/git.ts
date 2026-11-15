@@ -160,3 +160,80 @@ export async function getLastCommit(cwd: string): Promise<string | undefined> {
     return undefined;
   }
 }
+
+export interface CommitInfo {
+  hash: string;
+  shortHash: string;
+  authorName: string;
+  authorEmail: string;
+  /** Author date, strict ISO 8601. */
+  dateIso: string;
+  subject: string;
+  parents: string[];
+}
+
+export interface CommitFileChange {
+  path: string;
+  /** Original path for renames/copies. */
+  origPath?: string;
+  /** Status letter: A, M, D, R, C, T... */
+  status: string;
+}
+
+const LOG_FORMAT = '%H%x1f%h%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%P';
+
+/** Latest commits, newest first. Returns [] for a repository without commits. */
+export async function getLog(cwd: string, maxCount: number): Promise<CommitInfo[]> {
+  let out: string;
+  try {
+    out = await git(cwd, ['log', `--max-count=${maxCount}`, `--pretty=format:${LOG_FORMAT}`]);
+  } catch {
+    return []; // Unborn branch: no commits yet.
+  }
+  return out
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [hash, shortHash, authorName, authorEmail, dateIso, subject, parents] =
+        line.split('\x1f');
+      return {
+        hash,
+        shortHash,
+        authorName,
+        authorEmail,
+        dateIso,
+        subject,
+        parents: parents ? parents.split(' ') : [],
+      };
+    });
+}
+
+/**
+ * Files changed by a commit, compared against its first parent
+ * (all files for a root commit). Rename entries keep the original path.
+ */
+export async function getCommitFiles(
+  cwd: string,
+  sha: string,
+  isRootCommit: boolean,
+): Promise<CommitFileChange[]> {
+  // -M is required: plumbing diff-tree does not detect renames by default.
+  const args = isRootCommit
+    ? ['diff-tree', '--root', '--no-commit-id', '-r', '-M', '--name-status', sha]
+    : ['diff-tree', '-r', '-M', '--name-status', `${sha}^1`, sha];
+  const out = await git(cwd, args);
+  const changes: CommitFileChange[] = [];
+  for (const line of out.split('\n')) {
+    if (!line) {
+      continue;
+    }
+    const parts = line.split('\t');
+    const status = parts[0][0];
+    if (parts.length >= 3) {
+      changes.push({ path: parts[2], origPath: parts[1], status });
+    } else if (parts.length === 2) {
+      changes.push({ path: parts[1], status });
+    }
+  }
+  return changes;
+}

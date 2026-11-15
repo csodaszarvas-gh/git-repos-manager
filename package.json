@@ -1,8 +1,8 @@
 {
   "name": "git-repos-manager",
   "displayName": "Git Repos Manager",
-  "description": "Manage multiple Git repositories found across your project directories: status, stage, commit, fetch, pull and push from a single sidebar view.",
-  "version": "0.2.0",
+  "description": "Manage multiple Git repositories found across your project directories: status, stage, commit, history, fetch, pull and push from a single sidebar view.",
+  "version": "0.3.0",
   "publisher": "sky",
   "license": "MIT",
   "engines": {
@@ -30,6 +30,13 @@
           "title": "Git Repos",
           "icon": "media/git-repos.svg"
         }
+      ],
+      "panel": [
+        {
+          "id": "gitReposManagerPanel",
+          "title": "Git Repos",
+          "icon": "media/git-repos.svg"
+        }
       ]
     },
     "views": {
@@ -37,6 +44,20 @@
         {
           "id": "gitReposManager.reposView",
           "name": "Repositories",
+          "icon": "media/git-repos.svg",
+          "contextualTitle": "Git Repos"
+        },
+        {
+          "id": "gitReposManager.historyView",
+          "name": "History",
+          "icon": "media/git-repos.svg",
+          "contextualTitle": "Git Repos"
+        }
+      ],
+      "gitReposManagerPanel": [
+        {
+          "id": "gitReposManager.changedFilesView",
+          "name": "Changed Files",
           "icon": "media/git-repos.svg",
           "contextualTitle": "Git Repos"
         }
@@ -47,6 +68,16 @@
         "view": "gitReposManager.reposView",
         "when": "gitReposManager.repoCount == 0",
         "contents": "No Git repositories found in the current workspace.\n[Refresh](command:gitReposManager.refresh)\nAdjust the scan depth or excluded folders in the extension settings."
+      },
+      {
+        "view": "gitReposManager.historyView",
+        "when": "!gitReposManager.historyHasRepo",
+        "contents": "Select a repository in the Repositories view above to browse its commit history."
+      },
+      {
+        "view": "gitReposManager.changedFilesView",
+        "when": "gitReposManager.changedFilesCount == 0",
+        "contents": "Select one or more commits in the History view to see all the files they changed."
       }
     ],
     "commands": [
@@ -144,6 +175,33 @@
         "title": "Open Changes",
         "category": "Git Repos",
         "icon": "$(git-compare)"
+      },
+      {
+        "command": "gitReposManager.refreshHistory",
+        "title": "Refresh History",
+        "category": "Git Repos",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gitReposManager.loadMoreHistory",
+        "title": "Load More Commits",
+        "category": "Git Repos"
+      },
+      {
+        "command": "gitReposManager.showChangedFiles",
+        "title": "Show Changed Files",
+        "category": "Git Repos",
+        "icon": "$(files)"
+      },
+      {
+        "command": "gitReposManager.openCommitFile",
+        "title": "Open Commit File Changes",
+        "category": "Git Repos"
+      },
+      {
+        "command": "gitReposManager.openCombinedFile",
+        "title": "Open Combined Changes",
+        "category": "Git Repos"
       }
     ],
     "menus": {
@@ -157,6 +215,11 @@
           "command": "gitReposManager.fetchAll",
           "when": "view == gitReposManager.reposView",
           "group": "navigation@2"
+        },
+        {
+          "command": "gitReposManager.refreshHistory",
+          "when": "view == gitReposManager.historyView",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -244,6 +307,11 @@
           "command": "gitReposManager.stageFile",
           "when": "view == gitReposManager.reposView && viewItem == conflictsFile",
           "group": "1_edit@1"
+        },
+        {
+          "command": "gitReposManager.showChangedFiles",
+          "when": "view == gitReposManager.historyView && viewItem == commit",
+          "group": "1_history@1"
         },
         {
           "command": "gitReposManager.commit",
@@ -347,6 +415,26 @@
         {
           "command": "gitReposManager.openChanges",
           "when": "false"
+        },
+        {
+          "command": "gitReposManager.refreshHistory",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.loadMoreHistory",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.showChangedFiles",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.openCommitFile",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.openCombinedFile",
+          "when": "false"
         }
       ]
     },
@@ -383,6 +471,13 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically refresh repository status when Git metadata changes on disk."
+        },
+        "gitReposManager.historyPageSize": {
+          "type": "number",
+          "default": 50,
+          "minimum": 10,
+          "maximum": 500,
+          "description": "Number of commits to load per page in the History view."
         }
       }
     }

@@ -1,7 +1,17 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { git } from './git';
 
 export const DIFF_SCHEME = 'gitReposManager';
+
+/** Build a URI served by GitDiffProvider for the given repository, file and ref. */
+export function makeRefUri(repoRoot: string, relPath: string, ref: string): vscode.Uri {
+  return vscode.Uri.from({
+    scheme: DIFF_SCHEME,
+    path: vscode.Uri.file(path.join(repoRoot, relPath)).path,
+    query: new URLSearchParams({ root: repoRoot, ref, path: relPath }).toString(),
+  });
+}
 
 /**
  * Serves Git blob contents for diff views. The URI query carries:
