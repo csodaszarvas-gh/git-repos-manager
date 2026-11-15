@@ -270,6 +270,16 @@ export async function getBranches(cwd: string): Promise<BranchList> {
   };
 }
 
+/** Whether sha is reachable from ref (default HEAD); false on any git error. */
+export async function isAncestor(cwd: string, sha: string, ref = 'HEAD'): Promise<boolean> {
+  try {
+    await git(cwd, ['merge-base', '--is-ancestor', sha, ref]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface AuthorInfo {
   name: string;
   email: string;

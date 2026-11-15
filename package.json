@@ -2,7 +2,7 @@
   "name": "git-repos-manager",
   "displayName": "Git Repos Manager",
   "description": "Manage multiple Git repositories found across your project directories: status, stage, commit, history, fetch, pull and push from a single sidebar view.",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "publisher": "sky",
   "license": "MIT",
   "engines": {
@@ -238,6 +238,12 @@
         "icon": "$(files)"
       },
       {
+        "command": "gitReposManager.resetToCommit",
+        "title": "Reset Current Branch to Here",
+        "category": "Git Repos",
+        "icon": "$(history)"
+      },
+      {
         "command": "gitReposManager.openCommitFile",
         "title": "Open Commit File Changes",
         "category": "Git Repos"
@@ -388,6 +394,11 @@
           "group": "1_history@1"
         },
         {
+          "command": "gitReposManager.resetToCommit",
+          "when": "view == gitReposManager.historyView && viewItem == commit",
+          "group": "2_reset@1"
+        },
+        {
           "command": "gitReposManager.commit",
           "when": "view == gitReposManager.reposView && viewItem == repo",
           "group": "inline@1"
@@ -484,6 +495,10 @@
         },
         {
           "command": "gitReposManager.discardFiles",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.resetToCommit",
           "when": "false"
         },
         {

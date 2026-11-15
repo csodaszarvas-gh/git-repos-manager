@@ -4,7 +4,7 @@ import * as path from 'path';
 import { CombinedFileItem } from './changedFilesTree';
 import { showCommitBox } from './commitBox';
 import { makeRefUri } from './diffProvider';
-import { CommitInfo, getAuthors, getBranches, getStatus, git, LogFilter, LogFn } from './git';
+import { CommitInfo, getAuthors, getBranches, getStatus, git, isAncestor, LogFilter, LogFn } from './git';
 import { CommitFileItem, CommitItem, HistoryProvider } from './historyTree';
 import { Repository } from './repoScanner';
 import { FileItem, GroupItem, RepoItem, RepoTreeProvider } from './reposTree';
@@ -347,6 +347,8 @@ export function registerHistoryCommands(
     focusPanel: boolean,
   ) => Promise<void>,
   updateHistoryMeta: () => void,
+  tree: RepoTreeProvider,
+  log: LogFn,
 ): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('gitReposManager.refreshHistory', () => history.refresh()),
@@ -400,7 +402,60 @@ export function registerHistoryCommands(
         title,
       );
     }),
+    vscode.commands.registerCommand('gitReposManager.resetToCommit', (item?: CommitItem) => {
+      if (item) {
+        void resetToCommit(item, tree, log);
+      }
+    }),
   );
+}
+
+/**
+ * Mixed reset of the current branch to the selected commit: later commits are
+ * undone but their changes stay in the working tree as uncommitted changes.
+ */
+async function resetToCommit(item: CommitItem, tree: RepoTreeProvider, log: LogFn): Promise<void> {
+  const { repo, commit } = item;
+  let status;
+  try {
+    status = await getStatus(repo.root);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    void vscode.window.showErrorMessage(`Reset failed: ${message}`);
+    return;
+  }
+  if (status.oid === commit.hash) {
+    void vscode.window.showInformationMessage('Already at this commit.');
+    return;
+  }
+  if (!(await isAncestor(repo.root, commit.hash))) {
+    void vscode.window.showErrorMessage(
+      `Cannot reset: ${commit.shortHash} is not in the current branch history.`,
+    );
+    return;
+  }
+  const undone = (await git(repo.root, ['rev-list', '--count', `${commit.hash}..HEAD`])).trim();
+  const branch = status.branch ?? 'detached HEAD';
+  const confirm = await vscode.window.showWarningMessage(
+    `Reset ${branch} to ${commit.shortHash}? ${undone} later commit${undone === '1' ? '' : 's'} ` +
+      'will be undone; their changes are kept in the working tree as uncommitted changes.',
+    {
+      modal: true,
+      detail:
+        `${commit.subject}\n${commit.hash}\n\n` +
+        'Existing uncommitted changes are preserved. Undoable via git reflog.',
+    },
+    'Reset Branch',
+  );
+  if (confirm !== 'Reset Branch') {
+    return;
+  }
+  const ok = await runGitSteps(repo, [['reset', '--mixed', commit.hash]], 'Reset to commit', tree, log);
+  if (ok) {
+    void vscode.window.showInformationMessage(
+      `Reset ${repo.name} to ${commit.shortHash}. Undone changes are in the Working Tree.`,
+    );
+  }
 }
 
 async function searchHistory(history: HistoryProvider, updateHistoryMeta: () => void): Promise<void> {
