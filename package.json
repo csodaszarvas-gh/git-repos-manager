@@ -2,7 +2,7 @@
   "name": "git-repos-manager",
   "displayName": "Git Repos Manager",
   "description": "Manage multiple Git repositories found across your project directories: status, stage, commit, history, fetch, pull and push from a single sidebar view.",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "sky",
   "license": "MIT",
   "engines": {
@@ -273,6 +273,16 @@
           "command": "gitReposManager.refresh",
           "when": "view == gitReposManager.workingTreeView",
           "group": "navigation@1"
+        },
+        {
+          "command": "gitReposManager.commit",
+          "when": "view == gitReposManager.workingTreeView && gitReposManager.workingTreeHasRepo",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gitReposManager.commitAll",
+          "when": "view == gitReposManager.workingTreeView && gitReposManager.workingTreeHasRepo",
+          "group": "1_commit@1"
         }
       ],
       "view/item/context": [

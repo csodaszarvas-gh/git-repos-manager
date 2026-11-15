@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { CombinedFileItem } from './changedFilesTree';
 import { makeRefUri } from './diffProvider';
-import { CommitInfo, getAuthors, getBranches, git, LogFilter, LogFn } from './git';
+import { CommitInfo, getAuthors, getBranches, getStatus, git, LogFilter, LogFn } from './git';
 import { CommitFileItem, CommitItem, HistoryProvider } from './historyTree';
 import { Repository } from './repoScanner';
 import { FileItem, GroupItem, RepoItem, RepoTreeProvider } from './reposTree';
@@ -11,7 +11,29 @@ export function registerCommands(
   context: vscode.ExtensionContext,
   tree: RepoTreeProvider,
   log: LogFn,
+  getCurrentRepo: () => Repository | undefined,
 ): void {
+  // Title-bar/palette invocations carry no tree item: fall back to the repo
+  // currently shown in the Working Tree tab, with a fresh status read.
+  const commitFrom = async (item: RepoItem | undefined, stageAllChanges: boolean): Promise<void> => {
+    if (item) {
+      await commit(item.repo, item.status?.staged ?? 0, item.changeCount, tree, log, stageAllChanges);
+      return;
+    }
+    const repo = getCurrentRepo();
+    if (!repo) {
+      void vscode.window.showInformationMessage('Git Repos: select a repository first.');
+      return;
+    }
+    try {
+      const status = await getStatus(repo.root);
+      await commit(repo, status.staged, status.files.length, tree, log, stageAllChanges);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log(`Failed to read status of ${repo.root}: ${message}`);
+      void vscode.window.showErrorMessage(`Commit failed: ${message}`);
+    }
+  };
   context.subscriptions.push(
     vscode.commands.registerCommand('gitReposManager.refresh', () => tree.refresh()),
     vscode.commands.registerCommand('gitReposManager.fetchAll', () => fetchAll(tree, log)),
@@ -63,10 +85,10 @@ export function registerCommands(
       item && unstageAll(item.repo, item.files.length, tree, log),
     ),
     vscode.commands.registerCommand('gitReposManager.commit', (item?: RepoItem) =>
-      commit(item, tree, log, false),
+      commitFrom(item, false),
     ),
     vscode.commands.registerCommand('gitReposManager.commitAll', (item?: RepoItem) =>
-      commit(item, tree, log, true),
+      commitFrom(item, true),
     ),
     vscode.commands.registerCommand('gitReposManager.openChanges', (item?: FileItem) =>
       openChanges(item),
@@ -147,26 +169,36 @@ async function stageGroup(item: GroupItem, tree: RepoTreeProvider, log: LogFn): 
 }
 
 async function commit(
-  item: RepoItem | undefined,
+  repo: Repository,
+  stagedCount: number,
+  changeCount: number,
   tree: RepoTreeProvider,
   log: LogFn,
   stageAllChanges: boolean,
 ): Promise<void> {
-  if (!item) {
+  if (stageAllChanges && changeCount === 0) {
+    void vscode.window.showInformationMessage(`Nothing to commit in ${repo.name}.`);
     return;
   }
-  if (stageAllChanges && item.changeCount === 0) {
-    void vscode.window.showInformationMessage(`Nothing to commit in ${item.repo.name}.`);
-    return;
-  }
-  if (!stageAllChanges && (item.status?.staged ?? 0) === 0) {
-    void vscode.window.showWarningMessage(
-      `No staged changes in ${item.repo.name}. Stage files first, or use "Stage All & Commit".`,
+  if (!stageAllChanges && stagedCount === 0) {
+    if (changeCount === 0) {
+      void vscode.window.showWarningMessage(
+        `No staged changes in ${repo.name}. Stage files first, or use "Stage All & Commit".`,
+      );
+      return;
+    }
+    // Nothing staged but the tree is dirty: offer the one-click flow.
+    const pick = await vscode.window.showWarningMessage(
+      `No staged changes in ${repo.name}. Stage all ${changeCount} changed file${changeCount === 1 ? '' : 's'} and commit?`,
+      'Stage All & Commit',
     );
-    return;
+    if (pick !== 'Stage All & Commit') {
+      return;
+    }
+    stageAllChanges = true;
   }
   const message = await vscode.window.showInputBox({
-    prompt: `Commit message for ${item.repo.name}${stageAllChanges ? ' (all changes will be staged)' : ''}`,
+    prompt: `Commit message for ${repo.name}${stageAllChanges ? ' (all changes will be staged)' : ''}`,
     placeHolder: 'Commit message',
     ignoreFocusOut: true,
     validateInput: (value) => (value.trim() ? undefined : 'A commit message is required.'),
@@ -179,9 +211,9 @@ async function commit(
     steps.push(['add', '-A']);
   }
   steps.push(['commit', '-m', message]);
-  const ok = await runGitSteps(item.repo, steps, 'Commit', tree, log);
+  const ok = await runGitSteps(repo, steps, 'Commit', tree, log);
   if (ok) {
-    void vscode.window.showInformationMessage(`Committed in ${item.repo.name}.`);
+    void vscode.window.showInformationMessage(`Committed in ${repo.name}.`);
   }
 }
 

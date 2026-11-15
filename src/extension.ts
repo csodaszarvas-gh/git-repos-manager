@@ -156,7 +156,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  registerCommands(context, tree, log);
+  registerCommands(context, tree, log, () => workingTree.getRepo());
   registerHistoryCommands(context, history, showChangedFiles, updateHistoryMeta);
 
   // Auto-refresh when Git metadata changes on disk (debounced).
