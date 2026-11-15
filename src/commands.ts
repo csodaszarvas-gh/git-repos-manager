@@ -37,6 +37,14 @@ export function registerCommands(
       void vscode.window.showErrorMessage(`Commit failed: ${message}`);
     }
   };
+  const stashFrom = async (item: RepoItem | undefined, includeUntracked: boolean): Promise<void> => {
+    const repo = item?.repo ?? getCurrentRepo();
+    if (!repo) {
+      void vscode.window.showInformationMessage('Git Repos: select a repository first.');
+      return;
+    }
+    await stashChanges(repo, includeUntracked, tree, log);
+  };
   context.subscriptions.push(
     vscode.commands.registerCommand('gitReposManager.refresh', () => tree.refresh()),
     vscode.commands.registerCommand('gitReposManager.fetchAll', () => fetchAll(tree, log)),
@@ -93,6 +101,12 @@ export function registerCommands(
     vscode.commands.registerCommand('gitReposManager.commitAll', (item?: RepoItem) =>
       commitFrom(item, true),
     ),
+    vscode.commands.registerCommand('gitReposManager.stash', (item?: RepoItem) =>
+      stashFrom(item, false),
+    ),
+    vscode.commands.registerCommand('gitReposManager.stashAll', (item?: RepoItem) =>
+      stashFrom(item, true),
+    ),
     vscode.commands.registerCommand('gitReposManager.openChanges', (item?: FileItem) =>
       openChanges(item),
     ),
@@ -107,6 +121,56 @@ export function registerCommands(
       },
     ),
   );
+}
+
+/** Stash working-tree changes with an optional message; -u also takes untracked files. */
+async function stashChanges(
+  repo: Repository,
+  includeUntracked: boolean,
+  tree: RepoTreeProvider,
+  log: LogFn,
+): Promise<void> {
+  let status;
+  try {
+    status = await getStatus(repo.root);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log(`Failed to read status of ${repo.root}: ${message}`);
+    void vscode.window.showErrorMessage(`Stash failed: ${message}`);
+    return;
+  }
+  if (status.files.length === 0) {
+    void vscode.window.showInformationMessage(`Nothing to stash in ${repo.name}.`);
+    return;
+  }
+  if (!includeUntracked && status.staged + status.unstaged + status.conflicted === 0) {
+    void vscode.window.showInformationMessage(
+      'No tracked changes to stash. Use "Stash All Changes" to include untracked files.',
+    );
+    return;
+  }
+  const message = await vscode.window.showInputBox({
+    title: includeUntracked ? 'Stash All Changes' : 'Stash Changes',
+    prompt: includeUntracked
+      ? 'Optional message — untracked files are included'
+      : 'Optional message — tracked changes only',
+    placeHolder: 'WIP: my current work',
+  });
+  if (message === undefined) {
+    return;
+  }
+  const args = ['stash', 'push'];
+  if (includeUntracked) {
+    args.push('-u');
+  }
+  const trimmed = message.trim();
+  if (trimmed) {
+    args.push('-m', trimmed);
+  }
+  const ok = await runGitSteps(repo, [args], 'Stash changes', tree, log);
+  if (ok) {
+    void vscode.window.showInformationMessage(`Stashed changes in ${repo.name}.`);
+  }
 }
 
 /** Run git steps sequentially under one progress indicator; returns success. */

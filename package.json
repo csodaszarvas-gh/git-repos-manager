@@ -2,7 +2,7 @@
   "name": "git-repos-manager",
   "displayName": "Git Repos Manager",
   "description": "Manage multiple Git repositories found across your project directories: status, stage, commit, history, fetch, pull and push from a single sidebar view.",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "publisher": "sky",
   "license": "MIT",
   "engines": {
@@ -213,6 +213,18 @@
         "icon": "$(check-all)"
       },
       {
+        "command": "gitReposManager.stash",
+        "title": "Stash Changes",
+        "category": "Git Repos",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "gitReposManager.stashAll",
+        "title": "Stash All Changes",
+        "category": "Git Repos",
+        "icon": "$(archive)"
+      },
+      {
         "command": "gitReposManager.openChanges",
         "title": "Open Changes",
         "category": "Git Repos",
@@ -346,6 +358,16 @@
           "command": "gitReposManager.commitAll",
           "when": "view == gitReposManager.workingTreeView && gitReposManager.workingTreeHasRepo",
           "group": "1_commit@1"
+        },
+        {
+          "command": "gitReposManager.stash",
+          "when": "view == gitReposManager.workingTreeView && gitReposManager.workingTreeHasRepo",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gitReposManager.stashAll",
+          "when": "view == gitReposManager.workingTreeView && gitReposManager.workingTreeHasRepo",
+          "group": "1_stash@1"
         }
       ],
       "view/item/context": [
@@ -368,6 +390,16 @@
           "command": "gitReposManager.unstageAll",
           "when": "view == gitReposManager.reposView && viewItem == repo",
           "group": "0_commit@4"
+        },
+        {
+          "command": "gitReposManager.stash",
+          "when": "view == gitReposManager.reposView && viewItem == repo",
+          "group": "0_commit@5"
+        },
+        {
+          "command": "gitReposManager.stashAll",
+          "when": "view == gitReposManager.reposView && viewItem == repo",
+          "group": "0_commit@6"
         },
         {
           "command": "gitReposManager.fetch",
