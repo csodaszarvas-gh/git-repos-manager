@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { CommitFileChange, CommitInfo, getCommitFiles, getLog, LogFn } from './git';
+import { CommitFileChange, CommitInfo, getCommitFiles, getLog, LogFilter, LogFn } from './git';
 import { Repository } from './repoScanner';
 
 export class CommitItem extends vscode.TreeItem {
@@ -71,6 +71,7 @@ export class HistoryProvider implements vscode.TreeDataProvider<HistoryItem> {
 
   private repo: Repository | undefined;
   private commits: CommitInfo[] = [];
+  private filters: LogFilter = {};
   private loadedCount = 0;
   private mayHaveMore = false;
   private lastOid: string | undefined;
@@ -83,11 +84,34 @@ export class HistoryProvider implements vscode.TreeDataProvider<HistoryItem> {
     return this.repo;
   }
 
+  getFilters(): LogFilter {
+    return { ...this.filters };
+  }
+
+  setTextFilter(kind: 'message' | 'author', value: string | undefined): void {
+    this.filters = { ...this.filters, [kind]: value };
+    this.loadedCount = this.pageSize();
+    void this.refresh();
+  }
+
+  setBranchFilter(ref: string | undefined): void {
+    this.filters = { ...this.filters, ref };
+    this.loadedCount = this.pageSize();
+    void this.refresh();
+  }
+
+  clearFilters(): void {
+    this.filters = {};
+    this.loadedCount = this.pageSize();
+    void this.refresh();
+  }
+
   setRepo(repo: Repository | undefined): void {
     if (repo?.root === this.repo?.root) {
       return;
     }
     this.repo = repo;
+    this.filters = {};
     this.loadedCount = this.pageSize();
     this.fileCache.clear();
     this.commits = [];
@@ -99,7 +123,8 @@ export class HistoryProvider implements vscode.TreeDataProvider<HistoryItem> {
 
   /** Refresh when the repository HEAD moved (e.g. after a commit or checkout). */
   syncOid(oid: string | undefined): void {
-    if (!this.repo || oid === this.lastOid) {
+    // With a branch filter active, the shown history is not HEAD's.
+    if (!this.repo || this.filters.ref || oid === this.lastOid) {
       return;
     }
     void this.refresh();
@@ -111,9 +136,14 @@ export class HistoryProvider implements vscode.TreeDataProvider<HistoryItem> {
     }
     this.refreshing = true;
     try {
-      this.commits = await getLog(this.repo.root, this.loadedCount);
+      this.commits = await getLog(this.repo.root, this.loadedCount, this.filters);
       this.mayHaveMore = this.commits.length >= this.loadedCount;
       this.lastOid = this.commits[0]?.hash;
+      await vscode.commands.executeCommand(
+        'setContext',
+        'gitReposManager.historyCommitCount',
+        this.commits.length,
+      );
       this.emitter.fire();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

@@ -42,11 +42,38 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBar.tooltip = 'Git Repos Manager — click to refresh';
   context.subscriptions.push(statusBar);
 
+  let currentRepoItem: RepoItem | undefined;
+  const updateHistoryMeta = (): void => {
+    const filters = history.getFilters();
+    void vscode.commands.executeCommand(
+      'setContext',
+      'gitReposManager.historyFiltered',
+      Boolean(filters.message || filters.author || filters.ref),
+    );
+    const repo = history.getRepo();
+    if (!repo) {
+      historyView.message = undefined;
+      return;
+    }
+    const parts = [repo.name];
+    if (currentRepoItem?.status?.branch) {
+      parts.push(currentRepoItem.status.branch);
+    }
+    if (filters.ref) {
+      parts.push(`branch: ${filters.ref === '--all' ? 'all' : filters.ref}`);
+    }
+    if (filters.message) {
+      parts.push(`message: "${filters.message}"`);
+    }
+    if (filters.author) {
+      parts.push(`author: "${filters.author}"`);
+    }
+    historyView.message = parts.join(' • ');
+  };
   const selectHistoryRepo = (item: RepoItem | undefined): void => {
+    currentRepoItem = item;
     history.setRepo(item?.repo);
-    historyView.message = item
-      ? `${item.repo.name}${item.status?.branch ? ` • ${item.status.branch}` : ''}`
-      : undefined;
+    updateHistoryMeta();
   };
 
   const showChangedFiles = async (
@@ -82,7 +109,11 @@ export function activate(context: vscode.ExtensionContext): void {
     } else if (!current && items.length === 1) {
       selectHistoryRepo(items[0]);
     }
+    if (currentItem) {
+      currentRepoItem = currentItem;
+    }
     history.syncOid(currentItem?.status?.oid);
+    updateHistoryMeta();
   };
   context.subscriptions.push(tree.onDidChangeTreeData(updateStatusBar));
 
@@ -102,7 +133,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   registerCommands(context, tree, log);
-  registerHistoryCommands(context, history, showChangedFiles);
+  registerHistoryCommands(context, history, showChangedFiles, updateHistoryMeta);
 
   // Auto-refresh when Git metadata changes on disk (debounced).
   let refreshTimer: NodeJS.Timeout | undefined;
@@ -135,6 +166,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   void tree.refresh();
   void vscode.commands.executeCommand('setContext', 'gitReposManager.changedFilesCount', 0);
+  void vscode.commands.executeCommand('setContext', 'gitReposManager.historyCommitCount', 0);
+  void vscode.commands.executeCommand('setContext', 'gitReposManager.historyFiltered', false);
 }
 
 export function deactivate(): void {

@@ -2,7 +2,7 @@
   "name": "git-repos-manager",
   "displayName": "Git Repos Manager",
   "description": "Manage multiple Git repositories found across your project directories: status, stage, commit, history, fetch, pull and push from a single sidebar view.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "sky",
   "license": "MIT",
   "engines": {
@@ -73,6 +73,16 @@
         "view": "gitReposManager.historyView",
         "when": "!gitReposManager.historyHasRepo",
         "contents": "Select a repository in the Repositories view above to browse its commit history."
+      },
+      {
+        "view": "gitReposManager.historyView",
+        "when": "gitReposManager.historyHasRepo && gitReposManager.historyCommitCount == 0 && gitReposManager.historyFiltered",
+        "contents": "No commits match the current filters.\n[Clear Filters](command:gitReposManager.clearHistoryFilters)"
+      },
+      {
+        "view": "gitReposManager.historyView",
+        "when": "gitReposManager.historyHasRepo && gitReposManager.historyCommitCount == 0 && !gitReposManager.historyFiltered",
+        "contents": "This repository has no commits yet."
       },
       {
         "view": "gitReposManager.changedFilesView",
@@ -183,6 +193,18 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "gitReposManager.searchHistory",
+        "title": "Search Commits",
+        "category": "Git Repos",
+        "icon": "$(search)"
+      },
+      {
+        "command": "gitReposManager.clearHistoryFilters",
+        "title": "Clear Commit Filters",
+        "category": "Git Repos",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "gitReposManager.loadMoreHistory",
         "title": "Load More Commits",
         "category": "Git Repos"
@@ -220,6 +242,16 @@
           "command": "gitReposManager.refreshHistory",
           "when": "view == gitReposManager.historyView",
           "group": "navigation@1"
+        },
+        {
+          "command": "gitReposManager.searchHistory",
+          "when": "view == gitReposManager.historyView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gitReposManager.clearHistoryFilters",
+          "when": "view == gitReposManager.historyView && gitReposManager.historyFiltered",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [

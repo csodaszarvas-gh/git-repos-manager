@@ -182,11 +182,33 @@ export interface CommitFileChange {
 
 const LOG_FORMAT = '%H%x1f%h%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%P';
 
+export interface LogFilter {
+  /** Case-insensitive fixed-string substring of the commit message. */
+  message?: string;
+  /** Case-insensitive fixed-string substring of the author name/email. */
+  author?: string;
+  /** Branch/ref to log instead of HEAD, or '--all' for all refs. */
+  ref?: string;
+}
+
 /** Latest commits, newest first. Returns [] for a repository without commits. */
-export async function getLog(cwd: string, maxCount: number): Promise<CommitInfo[]> {
+export async function getLog(cwd: string, maxCount: number, filter: LogFilter = {}): Promise<CommitInfo[]> {
+  const args = ['log', `--max-count=${maxCount}`, `--pretty=format:${LOG_FORMAT}`];
+  if (filter.ref) {
+    args.push(filter.ref);
+  }
+  if (filter.message) {
+    args.push('-i', '-F', '--grep', filter.message);
+  }
+  if (filter.author) {
+    args.push('-i', '-F', '--author', filter.author);
+  }
+  if (filter.message && filter.author) {
+    args.push('--all-match');
+  }
   let out: string;
   try {
-    out = await git(cwd, ['log', `--max-count=${maxCount}`, `--pretty=format:${LOG_FORMAT}`]);
+    out = await git(cwd, args);
   } catch {
     return []; // Unborn branch: no commits yet.
   }
@@ -206,6 +228,30 @@ export async function getLog(cwd: string, maxCount: number): Promise<CommitInfo[
         parents: parents ? parents.split(' ') : [],
       };
     });
+}
+
+export interface BranchList {
+  /** Current branch name, undefined when HEAD is detached. */
+  current: string | undefined;
+  local: string[];
+  remote: string[];
+}
+
+/** Local and remote branches for the branch filter picker. */
+export async function getBranches(cwd: string): Promise<BranchList> {
+  const [localOut, remoteOut, currentOut] = await Promise.all([
+    git(cwd, ['branch', '--format=%(refname:short)']),
+    git(cwd, ['branch', '-r', '--format=%(refname:short)']),
+    git(cwd, ['branch', '--show-current']),
+  ]);
+  return {
+    current: currentOut.trim() || undefined,
+    local: localOut.split('\n').map((s) => s.trim()).filter(Boolean),
+    remote: remoteOut
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s && !s.endsWith('/HEAD')),
+  };
 }
 
 /**

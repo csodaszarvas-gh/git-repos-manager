@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { CombinedFileItem } from './changedFilesTree';
 import { makeRefUri } from './diffProvider';
-import { CommitInfo, git, LogFn } from './git';
+import { CommitInfo, getBranches, git, LogFn } from './git';
 import { CommitFileItem, CommitItem, HistoryProvider } from './historyTree';
 import { Repository } from './repoScanner';
 import { FileItem, GroupItem, RepoItem, RepoTreeProvider } from './reposTree';
@@ -223,9 +223,17 @@ export function registerHistoryCommands(
     commits: CommitInfo[],
     focusPanel: boolean,
   ) => Promise<void>,
+  updateHistoryMeta: () => void,
 ): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('gitReposManager.refreshHistory', () => history.refresh()),
+    vscode.commands.registerCommand('gitReposManager.searchHistory', () =>
+      searchHistory(history, updateHistoryMeta),
+    ),
+    vscode.commands.registerCommand('gitReposManager.clearHistoryFilters', () => {
+      history.clearFilters();
+      updateHistoryMeta();
+    }),
     vscode.commands.registerCommand('gitReposManager.loadMoreHistory', () => history.loadMore()),
     vscode.commands.registerCommand(
       'gitReposManager.showChangedFiles',
@@ -270,6 +278,57 @@ export function registerHistoryCommands(
       );
     }),
   );
+}
+
+async function searchHistory(history: HistoryProvider, updateHistoryMeta: () => void): Promise<void> {
+  const repo = history.getRepo();
+  if (!repo) {
+    void vscode.window.showInformationMessage('Git Repos: select a repository first.');
+    return;
+  }
+  const mode = await vscode.window.showQuickPick(
+    [
+      { label: '$(edit) Message', description: 'Search commit messages', mode: 'message' as const },
+      { label: '$(person) Author', description: 'Filter by author name or email', mode: 'author' as const },
+      { label: '$(git-branch) Branch', description: 'Show history of a specific branch', mode: 'branch' as const },
+    ],
+    { placeHolder: 'Search commits by...' },
+  );
+  if (!mode) {
+    return;
+  }
+  if (mode.mode === 'branch') {
+    const branches = await getBranches(repo.root);
+    const items: (vscode.QuickPickItem & { ref?: string })[] = [
+      { label: '$(git-branch) Current (HEAD)', description: 'default', ref: undefined },
+      { label: '$(list-unordered) All Branches', description: 'local and remote', ref: '--all' },
+      ...branches.local.map((b) => ({
+        label: b,
+        description: b === branches.current ? 'current branch' : 'local',
+        ref: b,
+      })),
+      ...branches.remote.map((b) => ({ label: b, description: 'remote', ref: b })),
+    ];
+    const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Select branch scope' });
+    if (!pick) {
+      return;
+    }
+    history.setBranchFilter(pick.ref);
+  } else {
+    const value = await vscode.window.showInputBox({
+      prompt:
+        mode.mode === 'message'
+          ? 'Search commit messages (substring, case-insensitive)'
+          : 'Filter by author name or email (substring, case-insensitive)',
+      value: history.getFilters()[mode.mode] ?? '',
+      placeHolder: mode.mode === 'message' ? 'e.g. fix login' : 'e.g. sky',
+    });
+    if (value === undefined) {
+      return; // Cancelled; an empty string clears the filter.
+    }
+    history.setTextFilter(mode.mode, value.trim() || undefined);
+  }
+  updateHistoryMeta();
 }
 
 async function fetchAll(tree: RepoTreeProvider, log: LogFn): Promise<void> {
