@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { CommitFileChange, CommitInfo, getCommitFiles, getLog, LogFilter, LogFn } from './git';
+import { CommitFileChange, CommitInfo, getLog, LogFilter, LogFn } from './git';
 import { Repository } from './repoScanner';
 
 export class CommitItem extends vscode.TreeItem {
@@ -8,9 +8,16 @@ export class CommitItem extends vscode.TreeItem {
     public readonly repo: Repository,
     public readonly commit: CommitInfo,
   ) {
-    super(commit.subject, vscode.TreeItemCollapsibleState.Collapsed);
+    // Commits are leaf items here; clicking loads the commit's files into the
+    // bottom-panel Changed Files tab instead of expanding inline.
+    super(commit.subject, vscode.TreeItemCollapsibleState.None);
     this.id = commit.hash;
     this.contextValue = 'commit';
+    this.command = {
+      command: 'gitReposManager.showChangedFiles',
+      title: 'Show Changed Files',
+      arguments: [this],
+    };
     this.description = `${commit.shortHash} • ${timeAgo(commit.dateIso)}`;
     this.tooltip = [
       commit.subject,
@@ -76,7 +83,6 @@ export class HistoryProvider implements vscode.TreeDataProvider<HistoryItem> {
   private mayHaveMore = false;
   private lastOid: string | undefined;
   private refreshing = false;
-  private readonly fileCache = new Map<string, CommitFileChange[]>();
 
   constructor(private readonly log: LogFn) {}
 
@@ -113,7 +119,6 @@ export class HistoryProvider implements vscode.TreeDataProvider<HistoryItem> {
     this.repo = repo;
     this.filters = {};
     this.loadedCount = this.pageSize();
-    this.fileCache.clear();
     this.commits = [];
     this.lastOid = undefined;
     void vscode.commands.executeCommand('setContext', 'gitReposManager.historyHasRepo', !!repo);
@@ -167,29 +172,15 @@ export class HistoryProvider implements vscode.TreeDataProvider<HistoryItem> {
   }
 
   async getChildren(element?: HistoryItem): Promise<HistoryItem[]> {
-    if (!this.repo) {
+    if (!this.repo || element) {
+      // Commits are leaf items; their files are shown in the panel.
       return [];
     }
-    if (!element) {
-      const items: HistoryItem[] = this.commits.map((c) => new CommitItem(this.repo!, c));
-      if (this.mayHaveMore) {
-        items.push(new LoadMoreItem());
-      }
-      return items;
+    const items: HistoryItem[] = this.commits.map((c) => new CommitItem(this.repo!, c));
+    if (this.mayHaveMore) {
+      items.push(new LoadMoreItem());
     }
-    if (element instanceof CommitItem) {
-      let files = this.fileCache.get(element.commit.hash);
-      if (!files) {
-        files = await getCommitFiles(
-          element.repo.root,
-          element.commit.hash,
-          element.commit.parents.length === 0,
-        ).catch(() => []);
-        this.fileCache.set(element.commit.hash, files);
-      }
-      return files.map((f) => new CommitFileItem(element.repo, element.commit, f));
-    }
-    return [];
+    return items;
   }
 }
 
