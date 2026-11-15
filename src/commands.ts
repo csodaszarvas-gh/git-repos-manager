@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { CombinedFileItem } from './changedFilesTree';
 import { makeRefUri } from './diffProvider';
-import { CommitInfo, getBranches, git, LogFn } from './git';
+import { CommitInfo, getAuthors, getBranches, git, LogFilter, LogFn } from './git';
 import { CommitFileItem, CommitItem, HistoryProvider } from './historyTree';
 import { Repository } from './repoScanner';
 import { FileItem, GroupItem, RepoItem, RepoTreeProvider } from './reposTree';
@@ -314,21 +314,79 @@ async function searchHistory(history: HistoryProvider, updateHistoryMeta: () => 
       return;
     }
     history.setBranchFilter(pick.ref);
+  } else if (mode.mode === 'author') {
+    const value = await pickAuthor(repo.root, history.getFilters());
+    if (value === undefined) {
+      return; // Cancelled.
+    }
+    history.setTextFilter('author', value.trim() || undefined);
   } else {
     const value = await vscode.window.showInputBox({
-      prompt:
-        mode.mode === 'message'
-          ? 'Search commit messages (substring, case-insensitive)'
-          : 'Filter by author name or email (substring, case-insensitive)',
-      value: history.getFilters()[mode.mode] ?? '',
-      placeHolder: mode.mode === 'message' ? 'e.g. fix login' : 'e.g. sky',
+      prompt: 'Search commit messages (substring, case-insensitive)',
+      value: history.getFilters().message ?? '',
+      placeHolder: 'e.g. fix login',
     });
     if (value === undefined) {
       return; // Cancelled; an empty string clears the filter.
     }
-    history.setTextFilter(mode.mode, value.trim() || undefined);
+    history.setTextFilter('message', value.trim() || undefined);
   }
   updateHistoryMeta();
+}
+
+interface AuthorPickItem extends vscode.QuickPickItem {
+  value?: string;
+  custom?: boolean;
+}
+
+/** Author picker with completion from the repo history; free text stays possible. */
+async function pickAuthor(repoRoot: string, filters: LogFilter): Promise<string | undefined> {
+  const authors = await getAuthors(repoRoot, filters.ref ?? 'HEAD');
+  return new Promise<string | undefined>((resolve) => {
+    const qp = vscode.window.createQuickPick<AuthorPickItem>();
+    qp.placeholder = 'Select an author, or type a custom substring filter';
+    qp.matchOnDescription = true; // Typing also matches emails and counts.
+    const authorItems: AuthorPickItem[] = authors.map((a) => ({
+      label: a.name,
+      description: `${a.email} • ${a.commits} commit${a.commits === 1 ? '' : 's'}`,
+      value: a.email,
+    }));
+    const customItem: AuthorPickItem = {
+      label: '',
+      description: 'Custom substring filter',
+      alwaysShow: true,
+      custom: true,
+    };
+    qp.items = authorItems;
+    const current = filters.author;
+    if (current) {
+      const match = authorItems.find((i) => i.value === current);
+      if (match) {
+        qp.activeItems = [match];
+      } else {
+        qp.value = current;
+      }
+    }
+    qp.onDidChangeValue((v) => {
+      const text = v.trim();
+      if (text) {
+        customItem.label = `$(search) Use "${text}"`;
+        qp.items = [customItem, ...authorItems];
+      } else {
+        qp.items = authorItems;
+      }
+    });
+    qp.onDidAccept(() => {
+      const item = qp.activeItems[0];
+      resolve(item?.custom ? qp.value.trim() : item?.value);
+      qp.hide();
+    });
+    qp.onDidHide(() => {
+      resolve(undefined);
+      qp.dispose();
+    });
+    qp.show();
+  });
 }
 
 async function fetchAll(tree: RepoTreeProvider, log: LogFn): Promise<void> {

@@ -254,6 +254,31 @@ export async function getBranches(cwd: string): Promise<BranchList> {
   };
 }
 
+export interface AuthorInfo {
+  name: string;
+  email: string;
+  commits: number;
+}
+
+/** Authors reachable from a ref (default HEAD), most commits first. */
+export async function getAuthors(cwd: string, ref = 'HEAD'): Promise<AuthorInfo[]> {
+  let out: string;
+  try {
+    out = await git(cwd, ['shortlog', '-sne', ref]);
+  } catch {
+    return []; // Unborn branch: no commits yet.
+  }
+  const authors: AuthorInfo[] = [];
+  for (const line of out.split('\n')) {
+    // shortlog -sne lines: "   12\tName <email>"
+    const match = /^\s*(\d+)\t(.*) <(.*)>$/.exec(line);
+    if (match) {
+      authors.push({ commits: Number(match[1]), name: match[2], email: match[3] });
+    }
+  }
+  return authors;
+}
+
 /**
  * Files changed by a commit, compared against its first parent
  * (all files for a root commit). Rename entries keep the original path.
