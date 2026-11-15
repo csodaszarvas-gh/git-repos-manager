@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { CommitInfo, getCommitFiles, LogFn } from './git';
+import { CommitInfo, getCommitFiles, getStashFiles, LogFn } from './git';
 import { Repository } from './repoScanner';
 
 export interface CombinedFile {
@@ -64,10 +64,9 @@ export class ChangedFilesProvider implements vscode.TreeDataProvider<CombinedFil
     }
     const perCommit = await Promise.all(
       commits.map(async (commit) => {
-        const files = await getCommitFiles(
-          repo.root,
-          commit.hash,
-          commit.parents.length === 0,
+        const files = await (commit.isStash
+          ? getStashFiles(repo.root, commit.hash)
+          : getCommitFiles(repo.root, commit.hash, commit.parents.length === 0)
         ).catch((err) => {
           const message = err instanceof Error ? err.message : String(err);
           this.log(`Failed to read files of ${commit.shortHash}: ${message}`);

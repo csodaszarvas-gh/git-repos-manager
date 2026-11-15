@@ -8,6 +8,7 @@ import { CommitInfo, getAuthors, getBranches, getStatus, git, isAncestor, LogFil
 import { CommitFileItem, CommitItem, HistoryProvider } from './historyTree';
 import { Repository } from './repoScanner';
 import { FileItem, GroupItem, RepoItem, RepoTreeProvider } from './reposTree';
+import { StashItem, StashesProvider } from './stashesTree';
 
 export function registerCommands(
   context: vscode.ExtensionContext,
@@ -455,6 +456,95 @@ async function resetToCommit(item: CommitItem, tree: RepoTreeProvider, log: LogF
     void vscode.window.showInformationMessage(
       `Reset ${repo.name} to ${commit.shortHash}. Undone changes are in the Working Tree.`,
     );
+  }
+}
+
+export function registerStashCommands(
+  context: vscode.ExtensionContext,
+  stashes: StashesProvider,
+  tree: RepoTreeProvider,
+  log: LogFn,
+  showChangedFiles: (
+    repo: Repository,
+    commits: CommitInfo[],
+    focusPanel: boolean,
+  ) => Promise<void>,
+): void {
+  context.subscriptions.push(
+    vscode.commands.registerCommand('gitReposManager.refreshStashes', () => stashes.refresh()),
+    vscode.commands.registerCommand('gitReposManager.showStashFiles', (item?: StashItem) => {
+      if (!item) {
+        return;
+      }
+      const { repo, stash } = item;
+      // A stash commit's first parent is the HEAD it was created on, so the
+      // Changed Files panel can diff it like a regular commit.
+      const pseudo: CommitInfo = {
+        hash: stash.hash,
+        shortHash: stash.hash.slice(0, 7),
+        authorName: '',
+        authorEmail: '',
+        dateIso: stash.dateIso,
+        subject: stash.message || '(no message)',
+        parents: [`${stash.hash}^1`],
+        isStash: true,
+      };
+      void showChangedFiles(repo, [pseudo], true);
+    }),
+    vscode.commands.registerCommand('gitReposManager.applyStash', (item?: StashItem) => {
+      if (item) {
+        void applyStash(item, false, tree, log);
+      }
+    }),
+    vscode.commands.registerCommand('gitReposManager.popStash', (item?: StashItem) => {
+      if (item) {
+        void applyStash(item, true, tree, log);
+      }
+    }),
+    vscode.commands.registerCommand('gitReposManager.dropStash', (item?: StashItem) => {
+      if (item) {
+        void dropStash(item, tree, log);
+      }
+    }),
+  );
+}
+
+async function applyStash(
+  item: StashItem,
+  pop: boolean,
+  tree: RepoTreeProvider,
+  log: LogFn,
+): Promise<void> {
+  const { repo, stash } = item;
+  const selector = `stash@{${stash.index}}`;
+  const ok = await runGitSteps(
+    repo,
+    [['stash', pop ? 'pop' : 'apply', selector]],
+    pop ? 'Pop stash' : 'Apply stash',
+    tree,
+    log,
+  );
+  if (ok) {
+    void vscode.window.showInformationMessage(
+      `${pop ? 'Popped' : 'Applied'} ${selector} in ${repo.name}.`,
+    );
+  }
+}
+
+async function dropStash(item: StashItem, tree: RepoTreeProvider, log: LogFn): Promise<void> {
+  const { repo, stash } = item;
+  const selector = `stash@{${stash.index}}`;
+  const confirm = await vscode.window.showWarningMessage(
+    `Drop ${selector} in ${repo.name}? This cannot be undone.`,
+    { modal: true, detail: stash.message || '(no message)' },
+    'Drop Stash',
+  );
+  if (confirm !== 'Drop Stash') {
+    return;
+  }
+  const ok = await runGitSteps(repo, [['stash', 'drop', selector]], 'Drop stash', tree, log);
+  if (ok) {
+    void vscode.window.showInformationMessage(`Dropped ${selector}.`);
   }
 }
 

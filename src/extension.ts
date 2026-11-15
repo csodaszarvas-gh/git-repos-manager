@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
 import { ChangedFilesProvider } from './changedFilesTree';
-import { registerCommands, registerHistoryCommands } from './commands';
+import { registerCommands, registerHistoryCommands, registerStashCommands } from './commands';
 import { DIFF_SCHEME, GitDiffProvider } from './diffProvider';
 import { CommitInfo } from './git';
 import { CommitItem, HistoryProvider } from './historyTree';
 import { Repository } from './repoScanner';
 import { RepoItem, RepoTreeProvider } from './reposTree';
+import { StashesProvider } from './stashesTree';
 import { WorkingTreeProvider } from './workingTree';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -19,6 +20,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const history = new HistoryProvider(log);
   const changedFiles = new ChangedFilesProvider(log);
   const workingTree = new WorkingTreeProvider(log);
+  const stashes = new StashesProvider(log);
 
   const reposView = vscode.window.createTreeView('gitReposManager.reposView', {
     treeDataProvider: tree,
@@ -27,6 +29,9 @@ export function activate(context: vscode.ExtensionContext): void {
   const historyView = vscode.window.createTreeView('gitReposManager.historyView', {
     treeDataProvider: history,
     canSelectMany: true,
+  });
+  const stashesView = vscode.window.createTreeView('gitReposManager.stashesView', {
+    treeDataProvider: stashes,
   });
   const changedFilesView = vscode.window.createTreeView('gitReposManager.changedFilesView', {
     treeDataProvider: changedFiles,
@@ -40,6 +45,7 @@ export function activate(context: vscode.ExtensionContext): void {
     output,
     reposView,
     historyView,
+    stashesView,
     changedFilesView,
     workingTreeView,
     vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, new GitDiffProvider()),
@@ -84,12 +90,18 @@ export function activate(context: vscode.ExtensionContext): void {
       ? `${repo.name}${currentRepoItem?.status?.branch ? ` • ${currentRepoItem.status.branch}` : ''}`
       : undefined;
   };
+  const updateStashesMeta = (): void => {
+    const repo = stashes.getRepo();
+    stashesView.message = repo ? repo.name : undefined;
+  };
   const selectHistoryRepo = (item: RepoItem | undefined): void => {
     currentRepoItem = item;
     history.setRepo(item?.repo);
     workingTree.setRepo(item?.repo);
+    stashes.setRepo(item?.repo);
     updateHistoryMeta();
     updateWorkingTreeMeta();
+    updateStashesMeta();
   };
 
   const showChangedFiles = async (
@@ -131,10 +143,19 @@ export function activate(context: vscode.ExtensionContext): void {
     history.syncOid(currentItem?.status?.oid);
     updateHistoryMeta();
     updateWorkingTreeMeta();
+    updateStashesMeta();
   };
   context.subscriptions.push(tree.onDidChangeTreeData(updateStatusBar));
   // The Working Tree tab mirrors the sidebar status after every refresh.
   context.subscriptions.push(tree.onDidChangeTreeData(() => void workingTree.refresh()));
+  context.subscriptions.push(tree.onDidChangeTreeData(() => void stashes.refresh()));
+  context.subscriptions.push(
+    stashes.onDidChangeTreeData(() => {
+      const count = stashes.getCount();
+      stashesView.badge =
+        count > 0 ? { value: count, tooltip: 'Stashes in this repository' } : undefined;
+    }),
+  );
   context.subscriptions.push(
     workingTree.onDidChangeTreeData(() => {
       const count = workingTree.getChangeCount();
@@ -160,6 +181,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   registerCommands(context, tree, log, () => workingTree.getRepo());
   registerHistoryCommands(context, history, showChangedFiles, updateHistoryMeta, tree, log);
+  registerStashCommands(context, stashes, tree, log, showChangedFiles);
 
   // Auto-refresh when Git metadata changes on disk (debounced).
   let refreshTimer: NodeJS.Timeout | undefined;
@@ -196,6 +218,8 @@ export function activate(context: vscode.ExtensionContext): void {
   void vscode.commands.executeCommand('setContext', 'gitReposManager.historyFiltered', false);
   void vscode.commands.executeCommand('setContext', 'gitReposManager.workingTreeHasRepo', false);
   void vscode.commands.executeCommand('setContext', 'gitReposManager.workingTreeCount', 0);
+  void vscode.commands.executeCommand('setContext', 'gitReposManager.stashesHasRepo', false);
+  void vscode.commands.executeCommand('setContext', 'gitReposManager.stashCount', 0);
 }
 
 export function deactivate(): void {

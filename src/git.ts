@@ -170,6 +170,65 @@ export interface CommitInfo {
   dateIso: string;
   subject: string;
   parents: string[];
+  /** Set on stash pseudo-commits so file listings include the untracked part. */
+  isStash?: boolean;
+}
+
+export interface StashEntry {
+  /** Reflog selector index, e.g. 0 for stash@{0}. */
+  index: number;
+  hash: string;
+  /** Branch the stash was created on, when recoverable from the subject. */
+  branch: string | undefined;
+  message: string;
+  dateIso: string;
+}
+
+/** Stash list, newest first; empty on repos without stashes. */
+export async function getStashes(cwd: string): Promise<StashEntry[]> {
+  let out: string;
+  try {
+    out = await git(cwd, ['stash', 'list', '--pretty=format:%H%x1f%gd%x1f%gs%x1f%aI']);
+  } catch {
+    return [];
+  }
+  const entries: StashEntry[] = [];
+  for (const line of out.split('\n')) {
+    if (!line.trim()) {
+      continue;
+    }
+    const [hash, selector, subject, dateIso] = line.split('\x1f');
+    const indexMatch = /stash@\{(\d+)\}/.exec(selector ?? '');
+    if (!hash || !indexMatch) {
+      continue;
+    }
+    // Subjects look like "WIP on main: <sha> <subject>" or "On main: <message>".
+    const branchMatch = /^(?:WIP on|On) ([^:]+): /.exec(subject ?? '');
+    entries.push({
+      index: Number(indexMatch[1]),
+      hash,
+      branch: branchMatch?.[1],
+      message: branchMatch ? (subject ?? '').slice(branchMatch[0].length) : (subject ?? ''),
+      dateIso: dateIso ?? '',
+    });
+  }
+  return entries;
+}
+
+/**
+ * Files changed by a stash: the tracked diff against its first parent, plus
+ * the untracked-files commit (third parent, present only for stash -u/-a).
+ */
+export async function getStashFiles(cwd: string, hash: string): Promise<CommitFileChange[]> {
+  const tracked = await getCommitFiles(cwd, hash, false);
+  let untracked: CommitFileChange[] = [];
+  try {
+    // The untracked-files commit is a root commit holding only those files.
+    untracked = await getCommitFiles(cwd, `${hash}^3`, true);
+  } catch {
+    // No untracked part in this stash.
+  }
+  return [...tracked, ...untracked];
 }
 
 export interface CommitFileChange {

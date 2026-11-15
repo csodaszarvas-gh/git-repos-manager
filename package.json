@@ -2,7 +2,7 @@
   "name": "git-repos-manager",
   "displayName": "Git Repos Manager",
   "description": "Manage multiple Git repositories found across your project directories: status, stage, commit, history, fetch, pull and push from a single sidebar view.",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "publisher": "sky",
   "license": "MIT",
   "engines": {
@@ -52,6 +52,12 @@
           "name": "History",
           "icon": "media/git-repos.svg",
           "contextualTitle": "Git Repos"
+        },
+        {
+          "id": "gitReposManager.stashesView",
+          "name": "Stashes",
+          "icon": "media/git-repos.svg",
+          "contextualTitle": "Git Repos"
         }
       ],
       "gitReposManagerPanel": [
@@ -89,6 +95,16 @@
         "view": "gitReposManager.historyView",
         "when": "gitReposManager.historyHasRepo && gitReposManager.historyCommitCount == 0 && !gitReposManager.historyFiltered",
         "contents": "This repository has no commits yet."
+      },
+      {
+        "view": "gitReposManager.stashesView",
+        "when": "!gitReposManager.stashesHasRepo",
+        "contents": "Select a repository in the Repositories view above to browse its stashes."
+      },
+      {
+        "view": "gitReposManager.stashesView",
+        "when": "gitReposManager.stashesHasRepo && gitReposManager.stashCount == 0",
+        "contents": "No stashes in this repository."
       },
       {
         "view": "gitReposManager.workingTreeView",
@@ -244,6 +260,36 @@
         "icon": "$(history)"
       },
       {
+        "command": "gitReposManager.refreshStashes",
+        "title": "Refresh Stashes",
+        "category": "Git Repos",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gitReposManager.showStashFiles",
+        "title": "Show Stash Files",
+        "category": "Git Repos",
+        "icon": "$(files)"
+      },
+      {
+        "command": "gitReposManager.applyStash",
+        "title": "Apply Stash",
+        "category": "Git Repos",
+        "icon": "$(check)"
+      },
+      {
+        "command": "gitReposManager.popStash",
+        "title": "Pop Stash",
+        "category": "Git Repos",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "gitReposManager.dropStash",
+        "title": "Drop Stash",
+        "category": "Git Repos",
+        "icon": "$(trash)"
+      },
+      {
         "command": "gitReposManager.openCommitFile",
         "title": "Open Commit File Changes",
         "category": "Git Repos"
@@ -280,6 +326,11 @@
           "command": "gitReposManager.clearHistoryFilters",
           "when": "view == gitReposManager.historyView && gitReposManager.historyFiltered",
           "group": "navigation@3"
+        },
+        {
+          "command": "gitReposManager.refreshStashes",
+          "when": "view == gitReposManager.stashesView",
+          "group": "navigation@1"
         },
         {
           "command": "gitReposManager.refresh",
@@ -399,6 +450,26 @@
           "group": "2_reset@1"
         },
         {
+          "command": "gitReposManager.showStashFiles",
+          "when": "view == gitReposManager.stashesView && viewItem == stash",
+          "group": "1_stash@1"
+        },
+        {
+          "command": "gitReposManager.applyStash",
+          "when": "view == gitReposManager.stashesView && viewItem == stash",
+          "group": "1_stash@2"
+        },
+        {
+          "command": "gitReposManager.popStash",
+          "when": "view == gitReposManager.stashesView && viewItem == stash",
+          "group": "1_stash@3"
+        },
+        {
+          "command": "gitReposManager.dropStash",
+          "when": "view == gitReposManager.stashesView && viewItem == stash",
+          "group": "2_drop@1"
+        },
+        {
           "command": "gitReposManager.commit",
           "when": "view == gitReposManager.reposView && viewItem == repo",
           "group": "inline@1"
@@ -499,6 +570,26 @@
         },
         {
           "command": "gitReposManager.resetToCommit",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.refreshStashes",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.showStashFiles",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.applyStash",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.popStash",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.dropStash",
           "when": "false"
         },
         {

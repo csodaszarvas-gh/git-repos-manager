@@ -184,7 +184,7 @@ export class HistoryProvider implements vscode.TreeDataProvider<HistoryItem> {
   }
 }
 
-function timeAgo(iso: string): string {
+export function timeAgo(iso: string): string {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
   if (seconds < 60) {
     return `${seconds}s`;
