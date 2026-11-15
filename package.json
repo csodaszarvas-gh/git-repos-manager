@@ -1,0 +1,401 @@
+{
+  "name": "git-repos-manager",
+  "displayName": "Git Repos Manager",
+  "description": "Manage multiple Git repositories found across your project directories: status, stage, commit, fetch, pull and push from a single sidebar view.",
+  "version": "0.2.0",
+  "publisher": "sky",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.106.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "git",
+    "multi-repo",
+    "repository",
+    "scm"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gitReposManager",
+          "title": "Git Repos",
+          "icon": "media/git-repos.svg"
+        }
+      ]
+    },
+    "views": {
+      "gitReposManager": [
+        {
+          "id": "gitReposManager.reposView",
+          "name": "Repositories",
+          "icon": "media/git-repos.svg",
+          "contextualTitle": "Git Repos"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "gitReposManager.reposView",
+        "when": "gitReposManager.repoCount == 0",
+        "contents": "No Git repositories found in the current workspace.\n[Refresh](command:gitReposManager.refresh)\nAdjust the scan depth or excluded folders in the extension settings."
+      }
+    ],
+    "commands": [
+      {
+        "command": "gitReposManager.refresh",
+        "title": "Refresh Repositories",
+        "category": "Git Repos",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gitReposManager.fetchAll",
+        "title": "Fetch All Repositories",
+        "category": "Git Repos",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "gitReposManager.fetch",
+        "title": "Fetch",
+        "category": "Git Repos",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "gitReposManager.pull",
+        "title": "Pull (fast-forward only)",
+        "category": "Git Repos",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "gitReposManager.push",
+        "title": "Push",
+        "category": "Git Repos",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "gitReposManager.openTerminal",
+        "title": "Open Terminal",
+        "category": "Git Repos",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "gitReposManager.copyPath",
+        "title": "Copy Repository Path",
+        "category": "Git Repos"
+      },
+      {
+        "command": "gitReposManager.stageFile",
+        "title": "Stage File",
+        "category": "Git Repos",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gitReposManager.unstageFile",
+        "title": "Unstage File",
+        "category": "Git Repos",
+        "icon": "$(remove)"
+      },
+      {
+        "command": "gitReposManager.stageAll",
+        "title": "Stage All Changes",
+        "category": "Git Repos",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gitReposManager.unstageAll",
+        "title": "Unstage All Changes",
+        "category": "Git Repos",
+        "icon": "$(remove)"
+      },
+      {
+        "command": "gitReposManager.stageGroup",
+        "title": "Stage All in Group",
+        "category": "Git Repos",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gitReposManager.unstageGroup",
+        "title": "Unstage All in Group",
+        "category": "Git Repos",
+        "icon": "$(remove)"
+      },
+      {
+        "command": "gitReposManager.commit",
+        "title": "Commit Staged Changes",
+        "category": "Git Repos",
+        "icon": "$(check)"
+      },
+      {
+        "command": "gitReposManager.commitAll",
+        "title": "Stage All & Commit",
+        "category": "Git Repos",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "gitReposManager.openChanges",
+        "title": "Open Changes",
+        "category": "Git Repos",
+        "icon": "$(git-compare)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "gitReposManager.refresh",
+          "when": "view == gitReposManager.reposView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gitReposManager.fetchAll",
+          "when": "view == gitReposManager.reposView",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "gitReposManager.commit",
+          "when": "view == gitReposManager.reposView && viewItem == repo",
+          "group": "0_commit@1"
+        },
+        {
+          "command": "gitReposManager.commitAll",
+          "when": "view == gitReposManager.reposView && viewItem == repo",
+          "group": "0_commit@2"
+        },
+        {
+          "command": "gitReposManager.stageAll",
+          "when": "view == gitReposManager.reposView && viewItem == repo",
+          "group": "0_commit@3"
+        },
+        {
+          "command": "gitReposManager.unstageAll",
+          "when": "view == gitReposManager.reposView && viewItem == repo",
+          "group": "0_commit@4"
+        },
+        {
+          "command": "gitReposManager.fetch",
+          "when": "view == gitReposManager.reposView && viewItem == repo",
+          "group": "1_sync@1"
+        },
+        {
+          "command": "gitReposManager.pull",
+          "when": "view == gitReposManager.reposView && viewItem == repo",
+          "group": "1_sync@2"
+        },
+        {
+          "command": "gitReposManager.push",
+          "when": "view == gitReposManager.reposView && viewItem == repo",
+          "group": "1_sync@3"
+        },
+        {
+          "command": "gitReposManager.openTerminal",
+          "when": "view == gitReposManager.reposView && viewItem == repo",
+          "group": "2_open@1"
+        },
+        {
+          "command": "gitReposManager.copyPath",
+          "when": "view == gitReposManager.reposView && viewItem == repo",
+          "group": "2_open@2"
+        },
+        {
+          "command": "gitReposManager.unstageGroup",
+          "when": "view == gitReposManager.reposView && viewItem == stagedGroup",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "gitReposManager.stageGroup",
+          "when": "view == gitReposManager.reposView && viewItem == changesGroup",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "gitReposManager.stageGroup",
+          "when": "view == gitReposManager.reposView && viewItem == untrackedGroup",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "gitReposManager.stageGroup",
+          "when": "view == gitReposManager.reposView && viewItem == conflictsGroup",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "gitReposManager.unstageFile",
+          "when": "view == gitReposManager.reposView && viewItem == stagedFile",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "gitReposManager.stageFile",
+          "when": "view == gitReposManager.reposView && viewItem == changesFile",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "gitReposManager.stageFile",
+          "when": "view == gitReposManager.reposView && viewItem == untrackedFile",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "gitReposManager.stageFile",
+          "when": "view == gitReposManager.reposView && viewItem == conflictsFile",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "gitReposManager.commit",
+          "when": "view == gitReposManager.reposView && viewItem == repo",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitReposManager.unstageGroup",
+          "when": "view == gitReposManager.reposView && viewItem == stagedGroup",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitReposManager.stageGroup",
+          "when": "view == gitReposManager.reposView && viewItem == changesGroup",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitReposManager.stageGroup",
+          "when": "view == gitReposManager.reposView && viewItem == untrackedGroup",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitReposManager.stageGroup",
+          "when": "view == gitReposManager.reposView && viewItem == conflictsGroup",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitReposManager.unstageFile",
+          "when": "view == gitReposManager.reposView && viewItem == stagedFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitReposManager.stageFile",
+          "when": "view == gitReposManager.reposView && viewItem == changesFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitReposManager.stageFile",
+          "when": "view == gitReposManager.reposView && viewItem == untrackedFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitReposManager.stageFile",
+          "when": "view == gitReposManager.reposView && viewItem == conflictsFile",
+          "group": "inline@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "gitReposManager.fetch",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.pull",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.push",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.openTerminal",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.copyPath",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.stageFile",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.unstageFile",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.stageAll",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.unstageAll",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.stageGroup",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.unstageGroup",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.commit",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.commitAll",
+          "when": "false"
+        },
+        {
+          "command": "gitReposManager.openChanges",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Git Repos Manager",
+      "properties": {
+        "gitReposManager.scanDepth": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "maximum": 10,
+          "description": "How many directory levels deep to scan for Git repositories inside each workspace folder."
+        },
+        "gitReposManager.excludeFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "node_modules",
+            "out",
+            "dist",
+            "build",
+            ".venv",
+            "venv",
+            "__pycache__",
+            ".next",
+            "target",
+            "vendor"
+          ],
+          "description": "Folder names to skip while scanning for repositories."
+        },
+        "gitReposManager.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically refresh repository status when Git metadata changes on disk."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.106.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.6.0"
+  }
+}
