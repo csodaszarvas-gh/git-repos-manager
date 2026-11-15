@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { CombinedFileItem } from './changedFilesTree';
+import { showCommitBox } from './commitBox';
 import { makeRefUri } from './diffProvider';
 import { CommitInfo, getAuthors, getBranches, getStatus, git, LogFilter, LogFn } from './git';
 import { CommitFileItem, CommitItem, HistoryProvider } from './historyTree';
@@ -197,20 +198,16 @@ async function commit(
     }
     stageAllChanges = true;
   }
-  const message = await vscode.window.showInputBox({
-    prompt: `Commit message for ${repo.name}${stageAllChanges ? ' (all changes will be staged)' : ''}`,
-    placeHolder: 'Commit message',
-    ignoreFocusOut: true,
-    validateInput: (value) => (value.trim() ? undefined : 'A commit message is required.'),
-  });
-  if (!message) {
+  const message = await showCommitBox(repo.name, stageAllChanges);
+  if (!message || !message.trim()) {
     return;
   }
   const steps: string[][] = [];
   if (stageAllChanges) {
     steps.push(['add', '-A']);
   }
-  steps.push(['commit', '-m', message]);
+  // git -m keeps trailing blank lines (cleanup=whitespace): trim them ourselves.
+  steps.push(['commit', '-m', message.replace(/\s+$/, '')]);
   const ok = await runGitSteps(repo, steps, 'Commit', tree, log);
   if (ok) {
     void vscode.window.showInformationMessage(`Committed in ${repo.name}.`);
