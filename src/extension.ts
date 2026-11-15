@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { ChangedFilesProvider } from './changedFilesTree';
 import { registerCommands, registerHistoryCommands, registerStashCommands } from './commands';
 import { DIFF_SCHEME, GitDiffProvider } from './diffProvider';
@@ -183,30 +184,100 @@ export function activate(context: vscode.ExtensionContext): void {
   registerHistoryCommands(context, history, showChangedFiles, updateHistoryMeta, tree, log);
   registerStashCommands(context, stashes, tree, log, showChangedFiles);
 
-  // Auto-refresh when Git metadata changes on disk (debounced).
+  // Auto-refresh when Git metadata or working-tree files change on disk
+  // (debounced). File events only refresh the repository that owns the file;
+  // Git metadata events refresh everything, since branches may have moved.
   let refreshTimer: NodeJS.Timeout | undefined;
-  const scheduleRefresh = (): void => {
+  const pendingRoots = new Set<string>();
+  let fullRefreshPending = false;
+  const scheduleRefresh = (root?: string): void => {
     if (!vscode.workspace.getConfiguration('gitReposManager').get<boolean>('autoRefresh', true)) {
       return;
+    }
+    if (root) {
+      pendingRoots.add(root);
+    } else {
+      fullRefreshPending = true;
     }
     if (refreshTimer) {
       clearTimeout(refreshTimer);
     }
-    refreshTimer = setTimeout(() => void tree.refresh(), 750);
+    refreshTimer = setTimeout(() => {
+      const full = fullRefreshPending;
+      const roots = [...pendingRoots];
+      fullRefreshPending = false;
+      pendingRoots.clear();
+      if (full) {
+        void tree.refresh();
+      } else {
+        for (const pending of roots) {
+          void tree.refreshRepo(pending);
+        }
+      }
+    }, 750);
   };
+
+  // Resolve the innermost known repository containing a file, if any.
+  const repoRootFor = (uri: vscode.Uri): string | undefined => {
+    if (uri.scheme !== 'file') {
+      return undefined;
+    }
+    let best: string | undefined;
+    for (const item of tree.getItems()) {
+      const root = item.repo.root;
+      const rel = path.relative(root, uri.fsPath);
+      if (!rel.startsWith('..') && !path.isAbsolute(rel) && (!best || root.length > best.length)) {
+        best = root;
+      }
+    }
+    return best;
+  };
+
   for (const pattern of ['**/.git/HEAD', '**/.git/index', '**/.git/refs/**']) {
     const watcher = vscode.workspace.createFileSystemWatcher(pattern);
-    watcher.onDidChange(scheduleRefresh);
-    watcher.onDidCreate(scheduleRefresh);
-    watcher.onDidDelete(scheduleRefresh);
+    watcher.onDidChange(() => scheduleRefresh());
+    watcher.onDidCreate(() => scheduleRefresh());
+    watcher.onDidDelete(() => scheduleRefresh());
     context.subscriptions.push(watcher);
   }
+
+  // Working-tree changes (saves, external edits, creates/deletes) refresh only
+  // the owning repository, like the built-in Source Control view.
+  let excludedFolders = new Set(
+    vscode.workspace.getConfiguration('gitReposManager').get<string[]>('excludeFolders', []),
+  );
+  const onFileEvent = (uri: vscode.Uri): void => {
+    const segments = uri.fsPath.split(/[\\/]+/);
+    if (segments.some((segment) => segment === '.git' || excludedFolders.has(segment))) {
+      return; // .git internals have dedicated watchers; skip build output noise.
+    }
+    const root = repoRootFor(uri);
+    if (root) {
+      scheduleRefresh(root);
+    }
+  };
+  const fileWatcher = vscode.workspace.createFileSystemWatcher('**/*');
+  fileWatcher.onDidChange(onFileEvent);
+  fileWatcher.onDidCreate(onFileEvent);
+  fileWatcher.onDidDelete(onFileEvent);
+  context.subscriptions.push(
+    fileWatcher,
+    vscode.workspace.onDidSaveTextDocument((doc) => {
+      const root = repoRootFor(doc.uri);
+      if (root) {
+        scheduleRefresh(root);
+      }
+    }),
+  );
   context.subscriptions.push({ dispose: () => refreshTimer && clearTimeout(refreshTimer) });
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(() => void tree.refresh()),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('gitReposManager')) {
+        excludedFolders = new Set(
+          vscode.workspace.getConfiguration('gitReposManager').get<string[]>('excludeFolders', []),
+        );
         void tree.refresh();
       }
     }),

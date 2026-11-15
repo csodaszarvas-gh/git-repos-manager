@@ -213,6 +213,31 @@ export class RepoTreeProvider implements vscode.TreeDataProvider<AnyItem> {
     }
   }
 
+  /** Refresh one repository's status in place, without rescanning the workspace. */
+  async refreshRepo(root: string): Promise<void> {
+    const item = this.items.find((i) => i.repo.root === root);
+    if (!item) {
+      return;
+    }
+    const workspaceFolderCount = vscode.workspace.workspaceFolders?.length ?? 0;
+    let replacement: RepoItem;
+    try {
+      const status = await getStatus(root);
+      const lastCommit = await getLastCommit(root);
+      replacement = new RepoItem(item.repo, status, lastCommit, undefined, workspaceFolderCount);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.log(`Failed to read status of ${root}: ${message}`);
+      replacement = new RepoItem(item.repo, undefined, undefined, message, workspaceFolderCount);
+    }
+    // A full refresh may have replaced the list while we were reading status.
+    const index = this.items.findIndex((i) => i.repo.root === root);
+    if (index >= 0) {
+      this.items[index] = replacement;
+      this.emitter.fire();
+    }
+  }
+
   getTreeItem(element: AnyItem): vscode.TreeItem {
     return element;
   }

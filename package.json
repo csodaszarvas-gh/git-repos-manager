@@ -2,7 +2,7 @@
   "name": "git-repos-manager",
   "displayName": "Git Repos Manager",
   "description": "Manage multiple Git repositories found across your project directories: status, stage, commit, history, fetch, pull and push from a single sidebar view.",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "publisher": "sky",
   "license": "MIT",
   "engines": {
@@ -678,7 +678,7 @@
         "gitReposManager.autoRefresh": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically refresh repository status when Git metadata changes on disk."
+          "description": "Automatically refresh repository status when files are saved or changed on disk, or when Git metadata changes."
         },
         "gitReposManager.historyPageSize": {
           "type": "number",
