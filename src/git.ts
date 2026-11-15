@@ -180,6 +180,22 @@ export interface CommitFileChange {
   status: string;
 }
 
+export type GroupKind = 'staged' | 'changes' | 'untracked' | 'conflicts';
+
+/** Files belonging to a status group, in porcelain order. */
+export function filesForGroup(status: RepoStatus, kind: GroupKind): FileChange[] {
+  switch (kind) {
+    case 'staged':
+      return status.files.filter((f) => !f.untracked && !f.conflicted && f.x !== '.');
+    case 'changes':
+      return status.files.filter((f) => !f.untracked && !f.conflicted && f.y !== '.');
+    case 'untracked':
+      return status.files.filter((f) => f.untracked);
+    case 'conflicts':
+      return status.files.filter((f) => f.conflicted);
+  }
+}
+
 const LOG_FORMAT = '%H%x1f%h%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%P';
 
 export interface LogFilter {

@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { Repository, scanRepositories } from './repoScanner';
-import { FileChange, getLastCommit, getStatus, LogFn, RepoStatus } from './git';
+import { FileChange, filesForGroup, getLastCommit, getStatus, GroupKind, LogFn, RepoStatus } from './git';
 
-export type GroupKind = 'staged' | 'changes' | 'untracked' | 'conflicts';
+export type { GroupKind } from './git';
 
 const GROUP_LABELS: Record<GroupKind, string> = {
   staged: 'Staged Changes',
@@ -139,14 +139,15 @@ export class FileItem extends vscode.TreeItem {
     public readonly repo: Repository,
     public readonly kind: GroupKind,
     public readonly change: FileChange,
+    wide = false,
   ) {
-    super(path.basename(change.path), vscode.TreeItemCollapsibleState.None);
+    super(wide ? change.path : path.basename(change.path), vscode.TreeItemCollapsibleState.None);
     this.id = `${repo.root}::${kind}::${change.path}`;
     this.contextValue = `${kind}File`;
     const dir = path.dirname(change.path);
     const letter =
       this.kind === 'untracked' ? 'U' : this.kind === 'conflicts' ? '!' : this.kind === 'staged' ? change.x : change.y;
-    this.description = `${dir === '.' ? '' : `${dir}  `}${letter}`;
+    this.description = wide ? letter : `${dir === '.' ? '' : `${dir}  `}${letter}`;
     this.resourceUri = vscode.Uri.file(path.join(repo.root, change.path));
     this.tooltip =
       `${change.path}${change.origPath ? ` (renamed from ${change.origPath})` : ''}\n` +
@@ -229,21 +230,11 @@ export class RepoTreeProvider implements vscode.TreeDataProvider<AnyItem> {
         return [];
       }
       const groups: GroupItem[] = [];
-      const staged = status.files.filter((f) => !f.untracked && !f.conflicted && f.x !== '.');
-      const changes = status.files.filter((f) => !f.untracked && !f.conflicted && f.y !== '.');
-      const untracked = status.files.filter((f) => f.untracked);
-      const conflicts = status.files.filter((f) => f.conflicted);
-      if (staged.length > 0) {
-        groups.push(new GroupItem(element.repo, 'staged', staged));
-      }
-      if (changes.length > 0) {
-        groups.push(new GroupItem(element.repo, 'changes', changes));
-      }
-      if (untracked.length > 0) {
-        groups.push(new GroupItem(element.repo, 'untracked', untracked));
-      }
-      if (conflicts.length > 0) {
-        groups.push(new GroupItem(element.repo, 'conflicts', conflicts));
+      for (const kind of ['staged', 'changes', 'untracked', 'conflicts'] as const) {
+        const files = filesForGroup(status, kind);
+        if (files.length > 0) {
+          groups.push(new GroupItem(element.repo, kind, files));
+        }
       }
       return groups;
     }

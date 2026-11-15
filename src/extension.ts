@@ -6,6 +6,7 @@ import { CommitInfo } from './git';
 import { CommitItem, HistoryProvider } from './historyTree';
 import { Repository } from './repoScanner';
 import { RepoItem, RepoTreeProvider } from './reposTree';
+import { WorkingTreeProvider } from './workingTree';
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('Git Repos Manager');
@@ -17,6 +18,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const tree = new RepoTreeProvider(log);
   const history = new HistoryProvider(log);
   const changedFiles = new ChangedFilesProvider(log);
+  const workingTree = new WorkingTreeProvider(log);
 
   const reposView = vscode.window.createTreeView('gitReposManager.reposView', {
     treeDataProvider: tree,
@@ -28,12 +30,16 @@ export function activate(context: vscode.ExtensionContext): void {
   const changedFilesView = vscode.window.createTreeView('gitReposManager.changedFilesView', {
     treeDataProvider: changedFiles,
   });
+  const workingTreeView = vscode.window.createTreeView('gitReposManager.workingTreeView', {
+    treeDataProvider: workingTree,
+  });
 
   context.subscriptions.push(
     output,
     reposView,
     historyView,
     changedFilesView,
+    workingTreeView,
     vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, new GitDiffProvider()),
   );
 
@@ -70,10 +76,18 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     historyView.message = parts.join(' • ');
   };
+  const updateWorkingTreeMeta = (): void => {
+    const repo = workingTree.getRepo();
+    workingTreeView.message = repo
+      ? `${repo.name}${currentRepoItem?.status?.branch ? ` • ${currentRepoItem.status.branch}` : ''}`
+      : undefined;
+  };
   const selectHistoryRepo = (item: RepoItem | undefined): void => {
     currentRepoItem = item;
     history.setRepo(item?.repo);
+    workingTree.setRepo(item?.repo);
     updateHistoryMeta();
+    updateWorkingTreeMeta();
   };
 
   const showChangedFiles = async (
@@ -90,7 +104,7 @@ export function activate(context: vscode.ExtensionContext): void {
       count > 0 ? { value: count, tooltip: 'Files changed by the selected commits' } : undefined;
     await vscode.commands.executeCommand('setContext', 'gitReposManager.changedFilesCount', count);
     if (focusPanel) {
-      await vscode.commands.executeCommand('workbench.view.extension.gitReposManagerPanel');
+      await vscode.commands.executeCommand('gitReposManager.changedFilesView.focus');
     }
   };
 
@@ -114,8 +128,18 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     history.syncOid(currentItem?.status?.oid);
     updateHistoryMeta();
+    updateWorkingTreeMeta();
   };
   context.subscriptions.push(tree.onDidChangeTreeData(updateStatusBar));
+  // The Working Tree tab mirrors the sidebar status after every refresh.
+  context.subscriptions.push(tree.onDidChangeTreeData(() => void workingTree.refresh()));
+  context.subscriptions.push(
+    workingTree.onDidChangeTreeData(() => {
+      const count = workingTree.getChangeCount();
+      workingTreeView.badge =
+        count > 0 ? { value: count, tooltip: 'Changed files in the working tree' } : undefined;
+    }),
+  );
 
   context.subscriptions.push(
     reposView.onDidChangeSelection((e) => {
@@ -168,6 +192,8 @@ export function activate(context: vscode.ExtensionContext): void {
   void vscode.commands.executeCommand('setContext', 'gitReposManager.changedFilesCount', 0);
   void vscode.commands.executeCommand('setContext', 'gitReposManager.historyCommitCount', 0);
   void vscode.commands.executeCommand('setContext', 'gitReposManager.historyFiltered', false);
+  void vscode.commands.executeCommand('setContext', 'gitReposManager.workingTreeHasRepo', false);
+  void vscode.commands.executeCommand('setContext', 'gitReposManager.workingTreeCount', 0);
 }
 
 export function deactivate(): void {

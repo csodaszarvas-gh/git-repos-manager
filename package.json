@@ -2,7 +2,7 @@
   "name": "git-repos-manager",
   "displayName": "Git Repos Manager",
   "description": "Manage multiple Git repositories found across your project directories: status, stage, commit, history, fetch, pull and push from a single sidebar view.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "sky",
   "license": "MIT",
   "engines": {
@@ -56,6 +56,12 @@
       ],
       "gitReposManagerPanel": [
         {
+          "id": "gitReposManager.workingTreeView",
+          "name": "Working Tree",
+          "icon": "media/git-repos.svg",
+          "contextualTitle": "Git Repos"
+        },
+        {
           "id": "gitReposManager.changedFilesView",
           "name": "Changed Files",
           "icon": "media/git-repos.svg",
@@ -83,6 +89,16 @@
         "view": "gitReposManager.historyView",
         "when": "gitReposManager.historyHasRepo && gitReposManager.historyCommitCount == 0 && !gitReposManager.historyFiltered",
         "contents": "This repository has no commits yet."
+      },
+      {
+        "view": "gitReposManager.workingTreeView",
+        "when": "!gitReposManager.workingTreeHasRepo",
+        "contents": "Select a repository in the Repositories view to see its working tree changes here."
+      },
+      {
+        "view": "gitReposManager.workingTreeView",
+        "when": "gitReposManager.workingTreeHasRepo && gitReposManager.workingTreeCount == 0",
+        "contents": "Working tree clean — no changes in this repository."
       },
       {
         "view": "gitReposManager.changedFilesView",
@@ -252,6 +268,11 @@
           "command": "gitReposManager.clearHistoryFilters",
           "when": "view == gitReposManager.historyView && gitReposManager.historyFiltered",
           "group": "navigation@3"
+        },
+        {
+          "command": "gitReposManager.refresh",
+          "when": "view == gitReposManager.workingTreeView",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -302,42 +323,42 @@
         },
         {
           "command": "gitReposManager.unstageGroup",
-          "when": "view == gitReposManager.reposView && viewItem == stagedGroup",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == stagedGroup",
           "group": "1_edit@1"
         },
         {
           "command": "gitReposManager.stageGroup",
-          "when": "view == gitReposManager.reposView && viewItem == changesGroup",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == changesGroup",
           "group": "1_edit@1"
         },
         {
           "command": "gitReposManager.stageGroup",
-          "when": "view == gitReposManager.reposView && viewItem == untrackedGroup",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == untrackedGroup",
           "group": "1_edit@1"
         },
         {
           "command": "gitReposManager.stageGroup",
-          "when": "view == gitReposManager.reposView && viewItem == conflictsGroup",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == conflictsGroup",
           "group": "1_edit@1"
         },
         {
           "command": "gitReposManager.unstageFile",
-          "when": "view == gitReposManager.reposView && viewItem == stagedFile",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == stagedFile",
           "group": "1_edit@1"
         },
         {
           "command": "gitReposManager.stageFile",
-          "when": "view == gitReposManager.reposView && viewItem == changesFile",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == changesFile",
           "group": "1_edit@1"
         },
         {
           "command": "gitReposManager.stageFile",
-          "when": "view == gitReposManager.reposView && viewItem == untrackedFile",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == untrackedFile",
           "group": "1_edit@1"
         },
         {
           "command": "gitReposManager.stageFile",
-          "when": "view == gitReposManager.reposView && viewItem == conflictsFile",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == conflictsFile",
           "group": "1_edit@1"
         },
         {
@@ -352,42 +373,42 @@
         },
         {
           "command": "gitReposManager.unstageGroup",
-          "when": "view == gitReposManager.reposView && viewItem == stagedGroup",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == stagedGroup",
           "group": "inline@1"
         },
         {
           "command": "gitReposManager.stageGroup",
-          "when": "view == gitReposManager.reposView && viewItem == changesGroup",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == changesGroup",
           "group": "inline@1"
         },
         {
           "command": "gitReposManager.stageGroup",
-          "when": "view == gitReposManager.reposView && viewItem == untrackedGroup",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == untrackedGroup",
           "group": "inline@1"
         },
         {
           "command": "gitReposManager.stageGroup",
-          "when": "view == gitReposManager.reposView && viewItem == conflictsGroup",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == conflictsGroup",
           "group": "inline@1"
         },
         {
           "command": "gitReposManager.unstageFile",
-          "when": "view == gitReposManager.reposView && viewItem == stagedFile",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == stagedFile",
           "group": "inline@1"
         },
         {
           "command": "gitReposManager.stageFile",
-          "when": "view == gitReposManager.reposView && viewItem == changesFile",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == changesFile",
           "group": "inline@1"
         },
         {
           "command": "gitReposManager.stageFile",
-          "when": "view == gitReposManager.reposView && viewItem == untrackedFile",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == untrackedFile",
           "group": "inline@1"
         },
         {
           "command": "gitReposManager.stageFile",
-          "when": "view == gitReposManager.reposView && viewItem == conflictsFile",
+          "when": "view =~ /gitReposManager\\.(reposView|workingTreeView)/ && viewItem == conflictsFile",
           "group": "inline@1"
         }
       ],
