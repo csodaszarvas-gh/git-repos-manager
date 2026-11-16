@@ -1,6 +1,7 @@
 .vscode/**
 .github/**
 install.ps1
+install.sh
 src/**
 node_modules/**
 .gitignore

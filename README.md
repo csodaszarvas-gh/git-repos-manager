@@ -11,19 +11,23 @@ Manage multiple Git repositories found across your project directories from a si
 - Stashes view: browse, apply, pop, drop, and create stashes (tracked-only or including untracked)
 - Fetch / Pull (fast-forward only) / Push per repo, Fetch All, auto-refresh on save and file changes
 
-## Install / update (Windows)
+## Install / update
 
-Run this line in PowerShell — it installs the latest release, or updates an existing install:
+### Windows (PowerShell)
+
+Run this line — it installs the latest release, or updates an existing install:
 
 ```powershell
 irm https://raw.githubusercontent.com/csodaszarvas-gh/git-repos-manager/main/install.ps1 | iex
 ```
 
-It detects VS Code (`code` on PATH), VSCodium (`codium`) or Qoder IDE automatically. To force a specific CLI:
+### Linux (bash)
 
-```powershell
-$env:EXTENSION_CLI = 'C:\path\to\code.cmd'; irm https://raw.githubusercontent.com/csodaszarvas-gh/git-repos-manager/main/install.ps1 | iex
+```bash
+curl -fsSL https://raw.githubusercontent.com/csodaszarvas-gh/git-repos-manager/main/install.sh | bash
 ```
+
+Both scripts detect VS Code (`code` on PATH), VSCodium (`codium`) or Qoder IDE automatically. To force a specific CLI, set `EXTENSION_CLI` first (PowerShell: `$env:EXTENSION_CLI = 'C:\path\to\code.cmd'`, bash: `export EXTENSION_CLI=/path/to/code`).
 
 Manual alternative: download the `.vsix` from the [latest release](https://github.com/csodaszarvas-gh/git-repos-manager/releases/latest), then run `code --install-extension <file>.vsix` or use *Extensions → … → Install from VSIX…* in the IDE.
 
