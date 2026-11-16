@@ -13,6 +13,8 @@ Manage multiple Git repositories found across your project directories from a si
 
 ## Install / update
 
+Requires VS Code 1.102 or later (also works in Qoder IDE).
+
 ### Windows (PowerShell)
 
 Run this line — it installs the latest release, or updates an existing install:
