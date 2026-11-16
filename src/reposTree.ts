@@ -172,10 +172,11 @@ export class RepoTreeProvider implements vscode.TreeDataProvider<AnyItem> {
     return this.items;
   }
 
-  getStats(): { total: number; dirty: number } {
+  getStats(): { total: number; dirty: number; changedFiles: number } {
     return {
       total: this.items.length,
       dirty: this.items.filter((item) => item.isDirty).length,
+      changedFiles: this.items.reduce((sum, item) => sum + item.changeCount, 0),
     };
   }
 

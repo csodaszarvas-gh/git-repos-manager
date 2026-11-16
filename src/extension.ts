@@ -93,7 +93,10 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   const updateStashesMeta = (): void => {
     const repo = stashes.getRepo();
-    stashesView.message = repo ? repo.name : undefined;
+    const count = stashes.getCount();
+    stashesView.message = repo
+      ? `${repo.name}${count > 0 ? ` • ${count} stash${count === 1 ? '' : 'es'}` : ''}`
+      : undefined;
   };
   const selectHistoryRepo = (item: RepoItem | undefined): void => {
     currentRepoItem = item;
@@ -129,6 +132,17 @@ export function activate(context: vscode.ExtensionContext): void {
     statusBar.text = `$(git-branch) ${repos}${stats.dirty > 0 ? ` • ${stats.dirty} dirty` : ''}`;
     statusBar.show();
 
+    // Global changeslist badge, like the built-in Source Control icon. Numeric
+    // view badges are summed on the activity bar icon, so no other view in this
+    // container may set one (the stash count lives in the Stashes view message).
+    reposView.badge =
+      stats.changedFiles > 0
+        ? {
+            value: stats.changedFiles,
+            tooltip: `${stats.changedFiles} changed file${stats.changedFiles === 1 ? '' : 's'} in ${stats.dirty} repositor${stats.dirty === 1 ? 'y' : 'ies'}`,
+          }
+        : undefined;
+
     // Keep the History view in sync with the selected repository.
     const items = tree.getItems();
     const current = history.getRepo();
@@ -150,13 +164,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // The Working Tree tab mirrors the sidebar status after every refresh.
   context.subscriptions.push(tree.onDidChangeTreeData(() => void workingTree.refresh()));
   context.subscriptions.push(tree.onDidChangeTreeData(() => void stashes.refresh()));
-  context.subscriptions.push(
-    stashes.onDidChangeTreeData(() => {
-      const count = stashes.getCount();
-      stashesView.badge =
-        count > 0 ? { value: count, tooltip: 'Stashes in this repository' } : undefined;
-    }),
-  );
+  context.subscriptions.push(stashes.onDidChangeTreeData(updateStashesMeta));
   context.subscriptions.push(
     workingTree.onDidChangeTreeData(() => {
       const count = workingTree.getChangeCount();
